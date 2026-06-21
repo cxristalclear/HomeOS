@@ -1,0 +1,248 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Home</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #fafaf9; -webkit-tap-highlight-color: transparent; }
+  * { -webkit-user-select: none; user-select: none; }
+</style>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
+
+/* ---------- storage: localStorage with in-memory fallback so it never hard-fails ---------- */
+const mem = {};
+const store = {
+  get(k){ try { const v = localStorage.getItem(k); return v==null?null:JSON.parse(v); } catch { return k in mem ? mem[k] : null; } },
+  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch { mem[k]=v; } },
+};
+
+/* ---------- time helpers ---------- */
+const DAY = 86400000;
+const startOfDay = (t) => { const d = new Date(t); d.setHours(0,0,0,0); return d.getTime(); };
+
+/* ---------- the due engine (no debt, re-anchor on completion) ---------- */
+// timestamp this task last BECAME due, or null if not currently due
+function dueSince(task, now){
+  const c = task.cadence;
+  if (c.type === 'interval') {
+    if (!task.lastDone) return 0;
+    const next = task.lastDone + c.everyDays*DAY;
+    return now >= next ? next : null;
+  }
+  if (c.type === 'weekly') {
+    let best = null;
+    for (let back = 0; back < 7; back++){
+      const day = startOfDay(now - back*DAY);
+      if (c.days.includes(new Date(day).getDay())){ best = day; break; }
+    }
+    if (best == null) return null;
+    if (!task.lastDone) return best;
+    return task.lastDone < best ? best : null;   // only the most recent occurrence => no stacking
+  }
+  return null;
+}
+
+// when a NOT-currently-due task will next come due
+function nextDue(task, now){
+  const c = task.cadence;
+  if (c.type === 'interval') return (task.lastDone || now) + c.everyDays*DAY;
+  if (c.type === 'weekly') {
+    for (let fwd = 1; fwd <= 14; fwd++){
+      const day = startOfDay(now + fwd*DAY);
+      if (c.days.includes(new Date(day).getDay())) return day;
+    }
+  }
+  return now + 7*DAY;
+}
+
+const overdueLabel = (since, now) => {
+  if (since === 0) return 'new';
+  const days = Math.floor((startOfDay(now) - startOfDay(since)) / DAY);
+  if (days <= 0) return 'due today';
+  if (days === 1) return '1 day over';
+  return days + ' days over';
+};
+
+/* ---------- seed (from the chore chart), staged so it spreads across the week, not all today ---------- */
+const WEEKDAY = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function buildSeed(now){
+  const today = startOfDay(now);
+  // interval tasks: firstDueInDays spreads them out so first open isn't a wall
+  const intervals = [
+    { name:'Kitchen reset', area:'Kitchen', owner:'anyone', every:1, firstDueInDays:0 },
+    { name:'Trash check / out', area:'Kitchen', owner:'anyone', every:2, firstDueInDays:1 },
+    { name:'General clutter reset', area:'Whole house', owner:'anyone', every:2, firstDueInDays:0 },
+    { name:'Laundry wash', area:'Laundry', owner:'me', every:3, firstDueInDays:2 },
+    { name:'Laundry finish (fold + away)', area:'Laundry', owner:'me', every:3, firstDueInDays:3 },
+    { name:'Studio reset', area:'Studio', owner:'anyone', every:3, firstDueInDays:1 },
+    { name:'Vacuum living room', area:'Living room', owner:'anyone', every:3, firstDueInDays:2 },
+    { name:'Sweep dining room', area:'Dining room', owner:'anyone', every:2, firstDueInDays:1 },
+    { name:'Litter box', area:'House', owner:'anyone', every:2, firstDueInDays:0 },
+    { name:'Towels refresh', area:'Bath', owner:'anyone', every:4, firstDueInDays:3 },
+  ].map(t => ({
+    name:t.name, area:t.area, owner:t.owner,
+    cadence:{type:'interval', everyDays:t.every},
+    // lastDone set so nextDue = today + firstDueInDays
+    lastDone: today + t.firstDueInDays*DAY - t.every*DAY,
+  }));
+
+  // weekly tasks: pinned to a weekday; lastDone = most recent past occurrence so they're "done last cycle"
+  const weeklies = [
+    { name:'Mop kitchen', area:'Kitchen', owner:'anyone', days:[6] },
+    { name:'Mop dining room', area:'Dining room', owner:'anyone', days:[6] },
+    { name:'Bathroom — downstairs', area:'Bath', owner:'anyone', days:[6] },
+    { name:'Bathroom — bedroom', area:'Bath', owner:'anyone', days:[6] },
+    { name:'Bathroom — studio', area:'Bath', owner:'anyone', days:[6] },
+    { name:'Dust & mirrors', area:'House', owner:'anyone', days:[6] },
+    { name:'Clean fridge', area:'Kitchen', owner:'anyone', days:[0] },
+    { name:'Change bed sheets', area:'Bedroom', owner:'anyone', days:[0] },
+    { name:'Meal prep / groceries', area:'Life', owner:'anyone', days:[0] },
+    { name:'Weekly planning', area:'Life', owner:'me', days:[0] },
+    { name:'Restock essentials check', area:'House', owner:'anyone', days:[0] },
+  ].map(t => {
+    // most recent scheduled day strictly before today, so it shows on its NEXT occurrence
+    let last = today;
+    for (let back=1; back<=7; back++){ const d = today - back*DAY; if (t.days.includes(new Date(d).getDay())){ last = d; break; } }
+    return { name:t.name, area:t.area, owner:t.owner, cadence:{type:'weekly', days:t.days}, lastDone:last };
+  });
+
+  return [...intervals, ...weeklies].map((t,i)=>({ id:'t'+i, ...t }));
+}
+
+/* ---------- app ---------- */
+function App(){
+  const now = Date.now();
+  const [tasks, setTasks] = useState(()=> store.get('tasks') || buildSeed(now));
+  const [log, setLog] = useState(()=> store.get('log') || []);
+  const [view, setView] = useState('all');
+  const [asking, setAsking] = useState(null);
+
+  useEffect(()=> store.set('tasks', tasks), [tasks]);
+  useEffect(()=> store.set('log', log), [log]);
+
+  const visible = (t) => view==='all' ? true : (t.owner===view || t.owner==='anyone');
+
+  // bucket each visible task into a day: Today (overdue/due) or a future weekday
+  const buckets = useMemo(()=>{
+    const today = startOfDay(now);
+    const map = {}; // key -> { label, order, items:[{t,since}] }
+    const ensure = (key, label, order) => (map[key] = map[key] || { label, order, items:[] });
+
+    tasks.forEach(t=>{
+      if (!visible(t)) return;
+      const since = dueSince(t, now);
+      if (since !== null){
+        ensure('today','Today',0).items.push({ t, since, sort: since });
+      } else {
+        const nd = nextDue(t, now);
+        const offset = Math.round((startOfDay(nd) - today) / DAY);
+        if (offset <= 0){ ensure('today','Today',0).items.push({ t, since:nd, sort:nd }); }
+        else if (offset <= 6){
+          const label = offset===1 ? 'Tomorrow' : WEEKDAY[new Date(nd).getDay()];
+          ensure('d'+offset, label, offset).items.push({ t, since:null, sort:nd });
+        } else {
+          ensure('later','Later this week+', 99).items.push({ t, since:null, sort:nd });
+        }
+      }
+    });
+    return Object.values(map)
+      .sort((a,b)=> a.order - b.order)
+      .map(b => ({ ...b, items: b.items.sort((x,y)=> x.sort - y.sort) }));
+  }, [tasks, view, now]);
+
+  const todayCount = (buckets.find(b=>b.label==='Today')?.items.length) || 0;
+
+  function complete(task, who){
+    setTasks(ts => ts.map(t => t.id===task.id ? {...t, lastDone: Date.now()} : t));
+    setLog(l => [...l, { id:'c'+Date.now()+Math.random(), taskId:task.id, who, at:Date.now() }]);
+    setAsking(null);
+  }
+  function onDone(task){ view==='all' ? setAsking(task) : complete(task, view); }
+
+  const ownerDot = { me:'bg-sky-500', her:'bg-rose-400', anyone:'bg-stone-300' };
+
+  return (
+    <div className="max-w-md mx-auto px-5 pt-8 pb-24">
+      <div className="flex items-baseline justify-between mb-1">
+        <h1 className="text-2xl font-semibold text-stone-800 tracking-tight">Home</h1>
+        <span className="text-xs text-stone-400">{todayCount} today</span>
+      </div>
+      <p className="text-sm text-stone-400 mb-5">Today's the short list. The rest is spread across the week — nothing owed for what slips.</p>
+
+      <div className="flex gap-1 p-1 bg-stone-100 rounded-xl mb-6 text-sm font-medium">
+        {[['all','All'],['me','Me'],['her','Her']].map(([k,label])=>(
+          <button key={k} onClick={()=>setView(k)}
+            className={"flex-1 py-2 rounded-lg transition "+(view===k?'bg-white text-stone-800 shadow-sm':'text-stone-400')}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {buckets.length===0 && (
+        <div className="text-center py-12 text-stone-400">
+          <div className="text-3xl mb-2">✓</div>
+          <div className="text-sm">Nothing scheduled. Go do your own thing.</div>
+        </div>
+      )}
+
+      <div className="space-y-7">
+        {buckets.map(bucket=>{
+          const isToday = bucket.label==='Today';
+          const isLater = bucket.order===99;
+          return (
+            <div key={bucket.label}>
+              <div className="flex items-baseline gap-2 mb-2 px-1">
+                <span className={"text-sm font-semibold "+(isToday?'text-stone-800':'text-stone-400')}>{bucket.label}</span>
+                <span className="text-xs text-stone-300">{bucket.items.length}</span>
+              </div>
+              <div className={isLater ? "space-y-1" : "space-y-2"}>
+                {bucket.items.map(({t,since})=> isLater ? (
+                  <div key={t.id} className="flex items-center gap-3 px-4 py-2 text-stone-400">
+                    <span className={"w-1.5 h-1.5 rounded-full shrink-0 "+ownerDot[t.owner]} />
+                    <span className="text-sm truncate">{t.name}</span>
+                  </div>
+                ) : (
+                  <div key={t.id} className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3 shadow-sm border border-stone-100">
+                    <span className={"w-2 h-2 rounded-full shrink-0 "+ownerDot[t.owner]} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-stone-800 font-medium leading-tight truncate">{t.name}</div>
+                      <div className="text-xs text-stone-400">
+                        {t.area}{isToday && since!==null ? ' · '+overdueLabel(since, now) : ''}
+                      </div>
+                    </div>
+                    <button onClick={()=>onDone(t)}
+                      className="shrink-0 text-sm font-medium text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl active:bg-emerald-100">
+                      Done
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {asking && (
+        <div className="fixed inset-0 bg-stone-900/30 flex items-end sm:items-center justify-center p-4" onClick={()=>setAsking(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-xl" onClick={e=>e.stopPropagation()}>
+            <div className="text-stone-800 font-medium mb-1">{asking.name}</div>
+            <div className="text-sm text-stone-400 mb-4">Who did it?</div>
+            <div className="flex gap-2">
+              <button onClick={()=>complete(asking,'me')} className="flex-1 py-3 rounded-2xl bg-sky-50 text-sky-700 font-medium active:bg-sky-100">Me</button>
+              <button onClick={()=>complete(asking,'her')} className="flex-1 py-3 rounded-2xl bg-rose-50 text-rose-600 font-medium active:bg-rose-100">Her</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
