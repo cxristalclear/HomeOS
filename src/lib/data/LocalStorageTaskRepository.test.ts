@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LocalStorageTaskRepository } from "./LocalStorageTaskRepository";
 import type { NewTask } from "./TaskRepository";
 import { dueSince, nextDue } from "@/lib/engine/due";
+import { activeStep } from "@/lib/engine/chain";
 import { DAY } from "@/lib/engine/time";
 
 /**
@@ -73,21 +74,67 @@ describe("completeTask — simple task", () => {
     expect(mine[0].id).toBeTruthy();
   });
 
-  it("does not advance chains yet — that is Slice 3", async () => {
+});
+
+const makeDish = (repo: LocalStorageTaskRepository) =>
+  repo.createTask({
+    name: "Dishwasher",
+    area: "Kitchen",
+    kind: "chain",
+    owner: null,
+    cadence_type: "interval",
+    every_days: 1,
+    days: null,
+    steps: [
+      { label: "Load", owner: "her" },
+      { label: "Unload", owner: "me" },
+    ],
+  });
+
+describe("completeTask — chain (the managed handoff)", () => {
+  it("advances the active step and logs the completed step's id and owner", async () => {
     const repo = new LocalStorageTaskRepository();
-    const chain = await repo.createTask({
-      name: "Test chain",
-      area: "Test",
-      kind: "chain",
-      owner: null,
-      cadence_type: "interval",
-      every_days: 2,
-      days: null,
-      steps: [
-        { label: "Load", owner: "her" },
-        { label: "Unload", owner: "me" },
-      ],
-    });
-    await expect(repo.completeTask(chain.id, "her")).rejects.toThrow();
+    const dish = await makeDish(repo); // never completed => due at step 0
+
+    const afterFirst = await repo.completeTask(dish.id, "her");
+    expect(afterFirst.active_step).toBe(1);
+    // it now surfaces the second step, to its owner — never the finished one
+    expect(activeStep(afterFirst, Date.now())?.step.owner).toBe("me");
+
+    const comps = (await repo.listCompletions()).filter(
+      (c) => c.task_id === dish.id,
+    );
+    expect(comps).toHaveLength(1);
+    expect(comps[0].who).toBe("her");
+    expect(comps[0].step_id).toBe(dish.steps[0].id);
+  });
+
+  it("completing the last step rests the chain, re-anchors it, and logs the step", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const dish = await makeDish(repo);
+
+    await repo.completeTask(dish.id, "her"); // step 0
+    const rested = await repo.completeTask(dish.id, "me"); // step 1 (last)
+
+    expect(rested.active_step).toBeNull();
+    expect(rested.active_step_since).toBeNull();
+    expect(rested.last_completed_at).not.toBeNull();
+    // resting now — not surfaced again until the cadence comes due
+    expect(activeStep(rested, Date.now())).toBeNull();
+
+    const comps = (await repo.listCompletions()).filter(
+      (c) => c.task_id === dish.id,
+    );
+    expect(comps).toHaveLength(2);
+    expect(comps[1].who).toBe("me");
+    expect(comps[1].step_id).toBe(dish.steps[1].id);
+  });
+
+  it("refuses to complete a chain that is resting (nothing surfaced)", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const dish = await makeDish(repo);
+    await repo.completeTask(dish.id, "her");
+    await repo.completeTask(dish.id, "me"); // now resting
+    await expect(repo.completeTask(dish.id, "her")).rejects.toThrow();
   });
 });

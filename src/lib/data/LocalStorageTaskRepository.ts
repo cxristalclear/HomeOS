@@ -6,7 +6,8 @@ import type {
   TaskStepRow,
 } from "@/lib/domain/types";
 import type { NewTask, TaskRepository } from "./TaskRepository";
-import { buildSeedTasks } from "./seed";
+import { advanceChain } from "@/lib/engine/chain";
+import { buildSeedChains, buildSeedTasks } from "./seed";
 
 const KEYS = {
   tasks: "homeos.tasks",
@@ -57,8 +58,10 @@ const newId = (prefix: string): string =>
 export class LocalStorageTaskRepository implements TaskRepository {
   private ensureSeeded(): void {
     if (read<boolean>(KEYS.seeded, false)) return;
-    write(KEYS.tasks, buildSeedTasks(Date.now()));
-    write<TaskStepRow[]>(KEYS.steps, []);
+    const now = Date.now();
+    const chains = buildSeedChains(now);
+    write(KEYS.tasks, [...buildSeedTasks(now), ...chains.chainTasks]);
+    write<TaskStepRow[]>(KEYS.steps, chains.chainSteps);
     write<CompletionRow[]>(KEYS.completions, []);
     write(KEYS.seeded, true);
   }
@@ -103,7 +106,7 @@ export class LocalStorageTaskRepository implements TaskRepository {
       every_days: input.every_days,
       days: input.days,
       last_completed_at: null,
-      active_step: input.kind === "chain" ? null : null,
+      active_step: null, // chains start resting; activation is computed from cadence
       active_step_since: null,
       created_at: Date.now(),
     };
@@ -159,20 +162,33 @@ export class LocalStorageTaskRepository implements TaskRepository {
     if (idx === -1) throw new Error(`completeTask: no task ${taskId}`);
 
     const task = tasks[idx];
+    const at = Date.now();
+
+    let updated: TaskRow;
+    let stepId: string | null;
+
     if (task.kind === "chain") {
-      // Chain advancement (the managed handoff) lands in Slice 3.
-      throw new Error("completeTask: chains not supported until Slice 3");
+      // The system owns the handoff: advance the active step, resting +
+      // re-anchoring when the last step completes. Refuses if nothing is
+      // surfaced (a resting chain has no step to complete).
+      const advance = advanceChain(this.join(task, this.getSteps()), at);
+      if (advance === null) {
+        throw new Error(`completeTask: chain ${taskId} has no active step`);
+      }
+      updated = { ...task, ...advance.patch };
+      stepId = advance.completedStep.id;
+    } else {
+      // Re-anchor cadence to when it was actually done — not the calendar. This
+      // is what guarantees "no debt": missed cycles never accrue (see why-doc).
+      updated = { ...task, last_completed_at: at };
+      stepId = null;
     }
 
-    const at = Date.now();
-    // Re-anchor cadence to when it was actually done — not the calendar. This
-    // is what guarantees "no debt": missed cycles never accrue (see why-doc).
-    const updated: TaskRow = { ...task, last_completed_at: at };
     const next = [...tasks];
     next[idx] = updated;
     write(KEYS.tasks, next);
 
-    await this.recordCompletion({ task_id: taskId, step_id: null, who, at });
+    await this.recordCompletion({ task_id: taskId, step_id: stepId, who, at });
 
     return this.join(updated, this.getSteps());
   }

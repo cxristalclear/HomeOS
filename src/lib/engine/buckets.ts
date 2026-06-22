@@ -1,5 +1,6 @@
-import type { Task } from "@/lib/domain/types";
+import type { Owner, Task } from "@/lib/domain/types";
 import { dueSince, nextDue } from "./due";
+import { activeStep } from "./chain";
 import { DAY, startOfDay } from "./time";
 
 export const WEEKDAY = [
@@ -16,6 +17,62 @@ export interface BucketItem {
   task: Task;
   /** When it became due (Today items), or null for upcoming items. */
   since: number | null;
+  /**
+   * Who the item is shown to and attributed on Done. For a simple task this is
+   * the task's owner; for a chain it's the *active step's* owner (resting chains
+   * preview the first step's owner). Drives the All/Me/Her filter so a chain
+   * only reaches the person whose turn it is.
+   */
+  owner: Owner | null;
+  /** The active chain step's label, or null for simple tasks. */
+  stepLabel: string | null;
+  /**
+   * The active chain step's id — present only when the chain step is actionable
+   * (surfaced to its owner now). Null for simple tasks and resting chains.
+   */
+  stepId: string | null;
+}
+
+/** Normalized "what to show, to whom, when" for one task — simple or chain. */
+interface Surface {
+  /** When it became due, or null if not currently due. */
+  since: number | null;
+  /** When it next comes due (only meaningful when `since` is null). */
+  nextAt: number;
+  owner: Owner | null;
+  stepLabel: string | null;
+  stepId: string | null;
+}
+
+function surface(task: Task, now: number): Surface {
+  if (task.kind === "chain") {
+    const active = activeStep(task, now);
+    if (active) {
+      return {
+        since: active.since,
+        nextAt: now,
+        owner: active.step.owner,
+        stepLabel: active.step.label,
+        stepId: active.step.id,
+      };
+    }
+    // resting: preview who's up first, but it isn't actionable yet (no stepId)
+    const first = task.steps[0] ?? null;
+    return {
+      since: null,
+      nextAt: nextDue(task, now),
+      owner: first?.owner ?? null,
+      stepLabel: null,
+      stepId: null,
+    };
+  }
+  return {
+    since: dueSince(task, now),
+    nextAt: nextDue(task, now),
+    owner: task.owner,
+    stepLabel: null,
+    stepId: null,
+  };
 }
 
 export interface Bucket {
@@ -50,21 +107,29 @@ export function bucketTasks(tasks: Task[], now: number): Bucket[] {
   };
 
   tasks.forEach((task) => {
-    const since = dueSince(task, now);
-    if (since !== null) {
-      push(ensure("today", "Today", 0), { task, since }, since);
+    const s = surface(task, now);
+    const item = (since: number | null): BucketItem => ({
+      task,
+      since,
+      owner: s.owner,
+      stepLabel: s.stepLabel,
+      stepId: s.stepId,
+    });
+
+    if (s.since !== null) {
+      push(ensure("today", "Today", 0), item(s.since), s.since);
       return;
     }
 
-    const nd = nextDue(task, now);
+    const nd = s.nextAt;
     const offset = Math.round((startOfDay(nd) - today) / DAY);
     if (offset <= 0) {
-      push(ensure("today", "Today", 0), { task, since: nd }, nd);
+      push(ensure("today", "Today", 0), item(nd), nd);
     } else if (offset <= 6) {
       const label = offset === 1 ? "Tomorrow" : WEEKDAY[new Date(nd).getDay()];
-      push(ensure(`d${offset}`, label, offset), { task, since: null }, nd);
+      push(ensure(`d${offset}`, label, offset), item(null), nd);
     } else {
-      push(ensure("later", "Later this week+", 99), { task, since: null }, nd);
+      push(ensure("later", "Later this week+", 99), item(null), nd);
     }
   });
 
