@@ -22,11 +22,10 @@ const KEYS = {
   seeded: "homeos.seeded",
 };
 
-// One simple task, due now (last_completed_at null), owned by "anyone" so it
-// surfaces in every view. Seeding is pre-disabled so the repo uses exactly this.
-function seedOneTask() {
-  const now = Date.now();
-  const task: TaskRow = {
+// A simple interval task owned by "anyone" (surfaces in every view). Defaults
+// to due-now (last_completed_at null); override fields per test.
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
+  return {
     id: "t1",
     name: "Test chore",
     area: "Test",
@@ -38,13 +37,20 @@ function seedOneTask() {
     last_completed_at: null,
     active_step: null,
     active_step_since: null,
-    created_at: now,
+    created_at: Date.now(),
+    ...overrides,
   };
-  localStorage.setItem(KEYS.tasks, JSON.stringify([task]));
+}
+
+// Write an exact task set. Seeding is pre-disabled so the repo uses only this.
+function putTasks(rows: TaskRow[]) {
+  localStorage.setItem(KEYS.tasks, JSON.stringify(rows));
   localStorage.setItem(KEYS.steps, JSON.stringify([]));
   localStorage.setItem(KEYS.completions, JSON.stringify([]));
   localStorage.setItem(KEYS.seeded, JSON.stringify(true));
 }
+
+const seedOneTask = () => putTasks([makeTask()]);
 
 beforeEach(() => {
   localStorage.clear();
@@ -95,5 +101,25 @@ describe("Home — completing a task", () => {
     expect(screen.queryByRole("dialog")).toBeNull(); // never asked "who?"
     const comps = await getRepository().listCompletions();
     expect(comps[0].who).toBe("me");
+  });
+});
+
+describe("Home — clear-today reassurance", () => {
+  it("shows the 'nothing due today' banner when Today is clear but the week ahead has tasks", async () => {
+    // Completed just now on a 3-day cadence → not due today; next due in 3 days,
+    // so it lands in an upcoming bucket, leaving Today empty.
+    putTasks([makeTask({ name: "Upcoming chore", last_completed_at: Date.now() })]);
+    render(<Page />);
+
+    await screen.findByText("Upcoming chore"); // the upcoming bucket rendered
+    expect(screen.getByText(/nothing due today/i)).toBeTruthy();
+  });
+
+  it("does not show the banner when something is due today", async () => {
+    putTasks([makeTask({ name: "Due chore", last_completed_at: null })]);
+    render(<Page />);
+
+    await screen.findByText("Due chore");
+    expect(screen.queryByText(/nothing due today/i)).toBeNull();
   });
 });
