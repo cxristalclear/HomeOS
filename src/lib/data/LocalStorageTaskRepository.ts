@@ -6,7 +6,7 @@ import type {
   TaskStepRow,
 } from "@/lib/domain/types";
 import type { NewTask, TaskRepository } from "./TaskRepository";
-import { advanceChain } from "@/lib/engine/chain";
+import { activeStep, advanceChain } from "@/lib/engine/chain";
 import { buildSeedChains, buildSeedTasks } from "./seed";
 
 const KEYS = {
@@ -189,7 +189,11 @@ export class LocalStorageTaskRepository implements TaskRepository {
     return this.join(updated, allSteps);
   }
 
-  async completeTask(taskId: string, who: Owner): Promise<Task> {
+  async completeTask(
+    taskId: string,
+    who: Owner,
+    expectedStepId?: string | null,
+  ): Promise<Task> {
     this.ensureSeeded();
     const tasks = this.getTasks();
     const idx = tasks.findIndex((t) => t.id === taskId);
@@ -205,7 +209,20 @@ export class LocalStorageTaskRepository implements TaskRepository {
       // The system owns the handoff: advance the active step, resting +
       // re-anchoring when the last step completes. Refuses if nothing is
       // surfaced (a resting chain has no step to complete).
-      const advance = advanceChain(this.join(task, this.getSteps()), at);
+      const joined = this.join(task, this.getSteps());
+      const active = activeStep(joined, at);
+      if (active === null) {
+        throw new Error(`completeTask: chain ${taskId} has no active step`);
+      }
+      // Reject a stale completion: the caller's step must still be the active
+      // one, or a replayed Done would advance the wrong step and corrupt the
+      // handoff + completion log (see TaskRepository.completeTask).
+      if (expectedStepId != null && active.step.id !== expectedStepId) {
+        throw new Error(
+          `completeTask: chain ${taskId} active step changed — stale completion rejected`,
+        );
+      }
+      const advance = advanceChain(joined, at);
       if (advance === null) {
         throw new Error(`completeTask: chain ${taskId} has no active step`);
       }

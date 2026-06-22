@@ -65,7 +65,11 @@ export class SupabaseTaskRepository implements TaskRepository {
     throw new Error(NOT_WIRED);
   }
 
-  async completeTask(_taskId: string, _who: Owner): Promise<Task> {
+  async completeTask(
+    _taskId: string,
+    _who: Owner,
+    _expectedStepId?: string | null,
+  ): Promise<Task> {
     throw new Error(NOT_WIRED);
   }
 

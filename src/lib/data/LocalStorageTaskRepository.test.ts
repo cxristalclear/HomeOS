@@ -137,6 +137,34 @@ describe("completeTask — chain (the managed handoff)", () => {
     await repo.completeTask(dish.id, "me"); // now resting
     await expect(repo.completeTask(dish.id, "her")).rejects.toThrow();
   });
+
+  it("rejects a stale completion whose step has already handed off — no advance, no log", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const dish = await makeDish(repo); // active = step 0 (Load, her)
+    const loadStepId = dish.steps[0].id;
+
+    // First tap completes Load → handoff advances to Unload (me).
+    await repo.completeTask(dish.id, "her", loadStepId);
+
+    // A replayed tap from the now-stale Load button: same step id, but the
+    // active step has moved on. It must be rejected, not silently complete
+    // Unload as "her".
+    await expect(
+      repo.completeTask(dish.id, "her", loadStepId),
+    ).rejects.toThrow();
+
+    // The chain is untouched: still on Unload (me), and only the one
+    // legitimate completion was logged.
+    const reloaded = (await repo.listTasks()).find((t) => t.id === dish.id)!;
+    expect(reloaded.active_step).toBe(1);
+    expect(activeStep(reloaded, Date.now())?.step.owner).toBe("me");
+
+    const comps = (await repo.listCompletions()).filter(
+      (c) => c.task_id === dish.id,
+    );
+    expect(comps).toHaveLength(1);
+    expect(comps[0].step_id).toBe(loadStepId);
+  });
 });
 
 describe("setSteps — chain step editing (Slice 4)", () => {

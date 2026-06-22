@@ -58,8 +58,14 @@ export default function Page() {
     buckets.find((b) => b.label === "Today")?.items.length ?? 0;
 
   const complete = useCallback(
-    async (task: Task, who: Owner) => {
-      await getRepository().completeTask(task.id, who);
+    async (task: Task, who: Owner, expectedStepId?: string | null) => {
+      try {
+        await getRepository().completeTask(task.id, who, expectedStepId);
+      } catch {
+        // A stale chain completion (e.g. double-tap, or another tab already
+        // advanced the handoff) is rejected by the repo. Swallow it and let the
+        // refresh below re-render the real current state.
+      }
       setAsking(null);
       refresh();
     },
@@ -69,9 +75,13 @@ export default function Page() {
   const onDone = useCallback(
     (item: BucketItem) => {
       // A chain step has a fixed owner — the system owns the handoff, so it
-      // attributes to that person and never asks "who?", in any view.
+      // attributes to that person and never asks "who?", in any view. Pass the
+      // surfaced step id so a stale/replayed tap can't complete a step that has
+      // since handed off to someone else.
       if (item.task.kind === "chain") {
-        if (item.owner) complete(item.task, item.owner);
+        if (item.owner && item.stepId) {
+          complete(item.task, item.owner, item.stepId);
+        }
         return;
       }
       const who = viewAttribution(view);
