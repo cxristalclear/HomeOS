@@ -155,6 +155,40 @@ export class LocalStorageTaskRepository implements TaskRepository {
     );
   }
 
+  async setSteps(
+    taskId: string,
+    steps: Array<Pick<TaskStepRow, "label" | "owner">>,
+  ): Promise<Task> {
+    this.ensureSeeded();
+    const tasks = this.getTasks();
+    const idx = tasks.findIndex((t) => t.id === taskId);
+    if (idx === -1) throw new Error(`setSteps: no task ${taskId}`);
+
+    const others = this.getSteps().filter((s) => s.task_id !== taskId);
+    const fresh: TaskStepRow[] = steps.map((s, position) => ({
+      id: newId("step"),
+      task_id: taskId,
+      position,
+      label: s.label,
+      owner: s.owner,
+    }));
+    const allSteps = [...others, ...fresh];
+    write(KEYS.steps, allSteps);
+
+    // Editing the chain's structure resets the handoff so the pointer can't
+    // outrun the new step list (and a re-shaped chain re-evaluates from cadence).
+    const updated: TaskRow = {
+      ...tasks[idx],
+      active_step: null,
+      active_step_since: null,
+    };
+    const next = [...tasks];
+    next[idx] = updated;
+    write(KEYS.tasks, next);
+
+    return this.join(updated, allSteps);
+  }
+
   async completeTask(taskId: string, who: Owner): Promise<Task> {
     this.ensureSeeded();
     const tasks = this.getTasks();

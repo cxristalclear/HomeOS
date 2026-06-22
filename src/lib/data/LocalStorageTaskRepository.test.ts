@@ -138,3 +138,65 @@ describe("completeTask — chain (the managed handoff)", () => {
     await expect(repo.completeTask(dish.id, "her")).rejects.toThrow();
   });
 });
+
+describe("setSteps — chain step editing (Slice 4)", () => {
+  it("replaces the step list wholesale, ordering by array position with fresh ids", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const dish = await makeDish(repo);
+
+    const updated = await repo.setSteps(dish.id, [
+      { label: "Rinse", owner: "me" },
+      { label: "Load", owner: "her" },
+      { label: "Unload", owner: "me" },
+    ]);
+
+    expect(updated.steps.map((s) => s.label)).toEqual([
+      "Rinse",
+      "Load",
+      "Unload",
+    ]);
+    expect(updated.steps.map((s) => s.position)).toEqual([0, 1, 2]);
+    expect(updated.steps.map((s) => s.owner)).toEqual(["me", "her", "me"]);
+    expect(new Set(updated.steps.map((s) => s.id)).size).toBe(3); // unique ids
+
+    // persisted: a fresh listTasks sees the new ordered steps
+    const reloaded = (await repo.listTasks()).find((t) => t.id === dish.id)!;
+    expect(reloaded.steps.map((s) => s.label)).toEqual([
+      "Rinse",
+      "Load",
+      "Unload",
+    ]);
+  });
+
+  it("resets the active-step pointer so editing structure can't leave it dangling", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const dish = await makeDish(repo);
+    await repo.completeTask(dish.id, "her"); // active_step advances to 1
+
+    const edited = await repo.setSteps(dish.id, [{ label: "Only", owner: "me" }]);
+    expect(edited.active_step).toBeNull();
+    expect(edited.active_step_since).toBeNull();
+  });
+
+  it("clears steps when given an empty list (chain -> simple)", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const dish = await makeDish(repo);
+
+    const cleared = await repo.setSteps(dish.id, []);
+    expect(cleared.steps).toEqual([]);
+    expect(
+      (await repo.listTasks()).find((t) => t.id === dish.id)!.steps,
+    ).toEqual([]);
+  });
+
+  it("does not touch other tasks' steps", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const a = await makeDish(repo);
+    const b = await makeDish(repo);
+
+    await repo.setSteps(a.id, [{ label: "Solo", owner: "me" }]);
+
+    const bReloaded = (await repo.listTasks()).find((t) => t.id === b.id)!;
+    expect(bReloaded.steps.map((s) => s.label)).toEqual(["Load", "Unload"]);
+  });
+});
