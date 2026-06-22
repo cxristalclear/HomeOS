@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
 import type { Owner, Task } from "@/lib/domain/types";
 import { bucketTasks } from "@/lib/engine/buckets";
 import { overdueLabel } from "@/lib/engine/due";
+import { ownerInView, viewAttribution, type View } from "@/lib/engine/view";
 
 const OWNER_DOT: Record<Owner, string> = {
   me: "bg-sky-500",
@@ -12,27 +13,59 @@ const OWNER_DOT: Record<Owner, string> = {
   anyone: "bg-stone-300",
 };
 
+const VIEWS: Array<[View, string]> = [
+  ["all", "All"],
+  ["me", "Me"],
+  ["her", "Her"],
+];
+
 /**
- * Slice 1 — day-grouped Home, read-only. Due/overdue tasks float up under
- * Today (oldest-first); upcoming tasks sit under the day they next come due,
- * then Later. The All/Me/Her toggle and Done arrive in Slice 2.
+ * Slice 2 — Home is now interactive for simple tasks. The All/Me/Her toggle
+ * filters to a person's jobs (shared/`anyone` tasks show under both), and Done
+ * re-anchors the task to now: it leaves Today and reappears on its next due day,
+ * with no debt for what slipped. In All, Done asks "who?" so the completion is
+ * attributed; in Me/Her it auto-attributes to the active person.
  */
 export default function Page() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
-  // freeze "now" for the render so bucketing is stable
+  const [view, setView] = useState<View>("all");
+  // task awaiting a "who?" answer (only happens in All view)
+  const [asking, setAsking] = useState<Task | null>(null);
+  // freeze "now" for the render so bucketing is stable across re-renders
   const [now] = useState(() => Date.now());
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     getRepository().listTasks().then(setTasks);
   }, []);
 
-  const buckets = useMemo(
-    () => (tasks ? bucketTasks(tasks, now) : []),
-    [tasks, now],
-  );
+  useEffect(refresh, [refresh]);
+
+  const buckets = useMemo(() => {
+    if (!tasks) return [];
+    const visible = tasks.filter((t) => ownerInView(t.owner, view));
+    return bucketTasks(visible, now);
+  }, [tasks, view, now]);
 
   const todayCount =
     buckets.find((b) => b.label === "Today")?.items.length ?? 0;
+
+  const complete = useCallback(
+    async (task: Task, who: Owner) => {
+      await getRepository().completeTask(task.id, who);
+      setAsking(null);
+      refresh();
+    },
+    [refresh],
+  );
+
+  const onDone = useCallback(
+    (task: Task) => {
+      const who = viewAttribution(view);
+      if (who === null) setAsking(task); // All view → ask
+      else complete(task, who);
+    },
+    [view, complete],
+  );
 
   return (
     <main className="mx-auto max-w-md px-5 pb-24 pt-8">
@@ -42,17 +75,34 @@ export default function Page() {
         </h1>
         <span className="text-xs text-stone-400">{todayCount} today</span>
       </div>
-      <p className="mb-6 text-sm text-stone-400">
+      <p className="mb-5 text-sm text-stone-400">
         Today&apos;s the short list. The rest is spread across the week — nothing
         owed for what slips.
       </p>
+
+      <div className="mb-6 flex gap-1 rounded-xl bg-stone-100 p-1 text-sm font-medium">
+        {VIEWS.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setView(key)}
+            className={
+              "flex-1 rounded-lg py-2 transition " +
+              (view === key
+                ? "bg-white text-stone-800 shadow-sm"
+                : "text-stone-400")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {tasks === null ? (
         <p className="text-sm text-stone-400">Loading…</p>
       ) : buckets.length === 0 ? (
         <div className="py-12 text-center text-stone-400">
           <div className="mb-2 text-3xl">✓</div>
-          <div className="text-sm">Nothing scheduled. Go do your own thing.</div>
+          <div className="text-sm">Nothing due. Go do your own thing.</div>
         </div>
       ) : (
         <div className="space-y-7">
@@ -112,6 +162,12 @@ export default function Page() {
                               : ""}
                           </div>
                         </div>
+                        <button
+                          onClick={() => onDone(task)}
+                          className="shrink-0 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 active:bg-emerald-100"
+                        >
+                          Done
+                        </button>
                       </div>
                     ),
                   )}
@@ -119,6 +175,35 @@ export default function Page() {
               </section>
             );
           })}
+        </div>
+      )}
+
+      {asking && (
+        <div
+          className="fixed inset-0 flex items-end justify-center bg-stone-900/30 p-4 sm:items-center"
+          onClick={() => setAsking(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 font-medium text-stone-800">{asking.name}</div>
+            <div className="mb-4 text-sm text-stone-400">Who did it?</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => complete(asking, "me")}
+                className="flex-1 rounded-2xl bg-sky-50 py-3 font-medium text-sky-700 active:bg-sky-100"
+              >
+                Me
+              </button>
+              <button
+                onClick={() => complete(asking, "her")}
+                className="flex-1 rounded-2xl bg-rose-50 py-3 font-medium text-rose-600 active:bg-rose-100"
+              >
+                Her
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

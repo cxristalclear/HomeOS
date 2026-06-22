@@ -152,14 +152,39 @@ export class LocalStorageTaskRepository implements TaskRepository {
     );
   }
 
-  async completeTask(_taskId: string, _who: Owner): Promise<Task> {
-    // Re-anchoring (simple) lands in Slice 2; chain advancement in Slice 3.
-    throw new Error("completeTask: not implemented until Slice 2");
+  async completeTask(taskId: string, who: Owner): Promise<Task> {
+    this.ensureSeeded();
+    const tasks = this.getTasks();
+    const idx = tasks.findIndex((t) => t.id === taskId);
+    if (idx === -1) throw new Error(`completeTask: no task ${taskId}`);
+
+    const task = tasks[idx];
+    if (task.kind === "chain") {
+      // Chain advancement (the managed handoff) lands in Slice 3.
+      throw new Error("completeTask: chains not supported until Slice 3");
+    }
+
+    const at = Date.now();
+    // Re-anchor cadence to when it was actually done — not the calendar. This
+    // is what guarantees "no debt": missed cycles never accrue (see why-doc).
+    const updated: TaskRow = { ...task, last_completed_at: at };
+    const next = [...tasks];
+    next[idx] = updated;
+    write(KEYS.tasks, next);
+
+    await this.recordCompletion({ task_id: taskId, step_id: null, who, at });
+
+    return this.join(updated, this.getSteps());
   }
 
   async recordCompletion(completion: Omit<CompletionRow, "id">): Promise<void> {
     this.ensureSeeded();
     const row: CompletionRow = { id: newId("done"), ...completion };
     write(KEYS.completions, [...this.getCompletions(), row]);
+  }
+
+  async listCompletions(): Promise<CompletionRow[]> {
+    this.ensureSeeded();
+    return this.getCompletions();
   }
 }

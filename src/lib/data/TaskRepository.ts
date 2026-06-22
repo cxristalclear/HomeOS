@@ -52,4 +52,10 @@ export interface TaskRepository {
 
   /** Append a completion record. */
   recordCompletion(completion: Omit<CompletionRow, "id">): Promise<void>;
+
+  /**
+   * The append-only completion log. No UI in MVP, but it powers the future
+   * learn/teach phase — and lets the engine's behavior be verified.
+   */
+  listCompletions(): Promise<CompletionRow[]>;
 }
