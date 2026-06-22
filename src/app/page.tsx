@@ -34,14 +34,50 @@ export default function Page() {
   const [asking, setAsking] = useState<Task | null>(null);
   // tasks with a completion in flight — guards against rapid repeat taps
   const [completing, setCompleting] = useState<Record<string, boolean>>({});
-  // freeze "now" for the render so bucketing is stable across re-renders
-  const [now] = useState(() => Date.now());
+  // "now" drives day bucketing. Stable across ordinary re-renders, but it must
+  // advance when the calendar day changes — otherwise a long-open tab is stuck
+  // showing yesterday's "Today" (see the midnight effect below).
+  const [now, setNow] = useState(() => Date.now());
 
   const refresh = useCallback(() => {
     getRepository().listTasks().then(setTasks);
   }, []);
 
   useEffect(refresh, [refresh]);
+
+  // Roll the day buckets over at local midnight. HomeOS runs on an always-on
+  // wall-mounted iPad whose screen is mostly visible and untouched, so a focus
+  // event almost never fires — a timer is what actually advances the day. The
+  // visibilitychange handler is the catch-up for the case the device slept
+  // across midnight (a suspended timer can fire late or not at all): refresh the
+  // moment it becomes visible again.
+  useEffect(() => {
+    const tick = () => {
+      setNow(Date.now());
+      refresh();
+    };
+
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleMidnight = () => {
+      const nextMidnight = new Date();
+      nextMidnight.setHours(24, 0, 0, 0); // start of tomorrow, local time
+      timer = setTimeout(() => {
+        tick();
+        scheduleMidnight();
+      }, nextMidnight.getTime() - Date.now());
+    };
+    scheduleMidnight();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh]);
 
   const buckets = useMemo(() => {
     if (!tasks) return [];
