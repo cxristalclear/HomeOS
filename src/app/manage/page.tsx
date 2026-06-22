@@ -31,6 +31,15 @@ const OWNER_DOT: Record<Owner, string> = {
   anyone: "bg-stone-300",
 };
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"]; // 0 = Sunday
+const WEEKDAY_LABELS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+]; // for aria-label — the single-letter glyphs above are ambiguous to screen readers
 
 interface FormState {
   id: string | null; // null => creating a new task
@@ -88,6 +97,7 @@ function cadenceSummary(task: Task): string {
 export default function ManagePage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const refresh = useCallback(() => {
     getRepository().listTasks().then(setTasks);
@@ -105,7 +115,9 @@ export default function ManagePage() {
       form.steps.some((s) => s.label.trim().length > 0));
 
   const save = useCallback(async () => {
-    if (!form || !isValid) return;
+    // Guard against rapid Save clicks creating duplicate tasks / repeated writes.
+    if (!form || !isValid || isSaving) return;
+    setIsSaving(true);
     const repo = getRepository();
 
     const fields = {
@@ -121,20 +133,24 @@ export default function ManagePage() {
       .map((s) => ({ label: s.label.trim(), owner: s.owner }))
       .filter((s) => s.label.length > 0);
 
-    if (form.id === null) {
-      await repo.createTask({
-        ...fields,
-        steps: form.kind === "chain" ? cleanSteps : undefined,
-      });
-    } else {
-      await repo.updateTask(form.id, fields);
-      // setSteps either writes the chain's steps or clears them (simple)
-      await repo.setSteps(form.id, form.kind === "chain" ? cleanSteps : []);
-    }
+    try {
+      if (form.id === null) {
+        await repo.createTask({
+          ...fields,
+          steps: form.kind === "chain" ? cleanSteps : undefined,
+        });
+      } else {
+        await repo.updateTask(form.id, fields);
+        // setSteps either writes the chain's steps or clears them (simple)
+        await repo.setSteps(form.id, form.kind === "chain" ? cleanSteps : []);
+      }
 
-    setForm(null);
-    refresh();
-  }, [form, isValid, refresh]);
+      setForm(null);
+      refresh();
+    } finally {
+      setIsSaving(false);
+    }
+  }, [form, isValid, isSaving, refresh]);
 
   const remove = useCallback(
     async (task: Task) => {
@@ -177,6 +193,7 @@ export default function ManagePage() {
           onSave={save}
           onCancel={() => setForm(null)}
           canSave={isValid}
+          isSaving={isSaving}
         />
       )}
 
@@ -245,6 +262,7 @@ function Pill({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={
         "flex-1 rounded-lg py-2 text-sm font-medium transition " +
         (active ? "bg-white text-stone-800 shadow-sm" : "text-stone-400")
@@ -261,12 +279,14 @@ function Editor({
   onSave,
   onCancel,
   canSave,
+  isSaving,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState | null>>;
   onSave: () => void;
   onCancel: () => void;
   canSave: boolean;
+  isSaving: boolean;
 }) {
   const patch = (p: Partial<FormState>) =>
     setForm((f) => (f ? { ...f, ...p } : f));
@@ -381,6 +401,8 @@ function Editor({
                 <button
                   key={d}
                   type="button"
+                  aria-label={WEEKDAY_LABELS[d]}
+                  aria-pressed={on}
                   onClick={() =>
                     patch({
                       days: on
@@ -474,10 +496,10 @@ function Editor({
       <div className="flex gap-2 pt-1">
         <button
           onClick={onSave}
-          disabled={!canSave}
+          disabled={!canSave || isSaving}
           className="flex-1 rounded-2xl bg-stone-800 py-3 text-sm font-medium text-white active:bg-stone-700 disabled:opacity-40"
         >
-          Save
+          {isSaving ? "Saving…" : "Save"}
         </button>
         <button
           onClick={onCancel}

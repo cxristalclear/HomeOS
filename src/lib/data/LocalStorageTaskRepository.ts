@@ -204,6 +204,10 @@ export class LocalStorageTaskRepository implements TaskRepository {
 
     let updated: TaskRow;
     let stepId: string | null;
+    // Chain completions are attributed to the step's owner, not the caller — the
+    // system owns the handoff, so the log records who the step actually belonged
+    // to regardless of what the UI passed. Simple tasks keep the caller's `who`.
+    let completionWho: Owner = who;
 
     if (task.kind === "chain") {
       // The system owns the handoff: advance the active step, resting +
@@ -228,6 +232,7 @@ export class LocalStorageTaskRepository implements TaskRepository {
       }
       updated = { ...task, ...advance.patch };
       stepId = advance.completedStep.id;
+      completionWho = advance.completedStep.owner;
     } else {
       // Re-anchor cadence to when it was actually done — not the calendar. This
       // is what guarantees "no debt": missed cycles never accrue (see why-doc).
@@ -239,7 +244,12 @@ export class LocalStorageTaskRepository implements TaskRepository {
     next[idx] = updated;
     write(KEYS.tasks, next);
 
-    await this.recordCompletion({ task_id: taskId, step_id: stepId, who, at });
+    await this.recordCompletion({
+      task_id: taskId,
+      step_id: stepId,
+      who: completionWho,
+      at,
+    });
 
     return this.join(updated, this.getSteps());
   }

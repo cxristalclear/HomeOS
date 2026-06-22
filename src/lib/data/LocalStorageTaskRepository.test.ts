@@ -165,6 +165,21 @@ describe("completeTask — chain (the managed handoff)", () => {
     expect(comps).toHaveLength(1);
     expect(comps[0].step_id).toBe(loadStepId);
   });
+
+  it("attributes a chain completion to the step owner, not the caller-supplied who", async () => {
+    const repo = new LocalStorageTaskRepository();
+    const dish = await makeDish(repo); // step 0 Load is owned by "her"
+
+    // Caller passes the wrong owner; the system owns the handoff, so the log
+    // must record the step's actual owner.
+    await repo.completeTask(dish.id, "me", dish.steps[0].id);
+
+    const comps = (await repo.listCompletions()).filter(
+      (c) => c.task_id === dish.id,
+    );
+    expect(comps).toHaveLength(1);
+    expect(comps[0].who).toBe("her");
+  });
 });
 
 describe("setSteps — chain step editing (Slice 4)", () => {

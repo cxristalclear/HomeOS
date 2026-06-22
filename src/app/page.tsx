@@ -32,6 +32,8 @@ export default function Page() {
   const [view, setView] = useState<View>("all");
   // task awaiting a "who?" answer (only happens in All view)
   const [asking, setAsking] = useState<Task | null>(null);
+  // tasks with a completion in flight — guards against rapid repeat taps
+  const [completing, setCompleting] = useState<Record<string, boolean>>({});
   // freeze "now" for the render so bucketing is stable across re-renders
   const [now] = useState(() => Date.now());
 
@@ -59,12 +61,28 @@ export default function Page() {
 
   const complete = useCallback(
     async (task: Task, who: Owner, expectedStepId?: string | null) => {
+      // Re-entrancy guard: ignore a repeat tap while this task is mid-complete,
+      // so a double-tap can't fire two completions before the refresh lands.
+      let started = false;
+      setCompleting((prev) => {
+        if (prev[task.id]) return prev;
+        started = true;
+        return { ...prev, [task.id]: true };
+      });
+      if (!started) return;
+
       try {
         await getRepository().completeTask(task.id, who, expectedStepId);
       } catch {
         // A stale chain completion (e.g. double-tap, or another tab already
         // advanced the handoff) is rejected by the repo. Swallow it and let the
         // refresh below re-render the real current state.
+      } finally {
+        setCompleting((prev) => {
+          const next = { ...prev };
+          delete next[task.id];
+          return next;
+        });
       }
       setAsking(null);
       refresh();
@@ -205,7 +223,8 @@ export default function Page() {
                         {actionable && (
                           <button
                             onClick={() => onDone(item)}
-                            className="shrink-0 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 active:bg-emerald-100"
+                            disabled={!!completing[task.id]}
+                            className="shrink-0 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 active:bg-emerald-100 disabled:opacity-40"
                           >
                             Done
                           </button>

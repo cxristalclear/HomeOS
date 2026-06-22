@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # CI only reads the code; no need to leave the token on disk.
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
