@@ -1,4 +1,5 @@
 import type { Owner, TaskRow } from "@/lib/domain/types";
+import { DAY, startOfDay } from "@/lib/engine/time";
 
 /**
  * Seed data, ported from the skeleton (docs/index.html → buildSeed).
@@ -13,14 +14,6 @@ import type { Owner, TaskRow } from "@/lib/domain/types";
  * skeleton's split tasks (e.g. laundry wash / finish) stay as separate simple
  * tasks here, faithful to the skeleton.
  */
-
-const DAY = 86_400_000;
-
-const startOfDay = (t: number): number => {
-  const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
 
 interface IntervalSeed {
   name: string;
