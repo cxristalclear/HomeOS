@@ -42,13 +42,34 @@ export interface TaskRepository {
   deleteTask(id: string): Promise<void>;
 
   /**
+   * Replace a chain's ordered steps wholesale — add / remove / reorder / re-own
+   * in one call, with positions assigned by array order and fresh ids. Editing
+   * the structure resets the active-step pointer so it can never dangle past the
+   * new list. Pass `[]` to clear (e.g. converting a chain back to simple).
+   */
+  setSteps(
+    taskId: string,
+    steps: Array<Pick<TaskStepRow, "label" | "owner">>,
+  ): Promise<Task>;
+
+  /**
    * Complete a task. For a simple task this re-anchors `last_completed_at` to
    * now; for a chain it advances the active step (resting + re-anchoring when
    * the last step completes). Records a completion internally.
    *
+   * `expectedStepId` guards against stale chain completions: a replayed Done
+   * (double-tap before refresh, or a second tab/device still showing the prior
+   * step) would otherwise advance whatever step is *now* active, mis-attributing
+   * it and skipping the real handoff. When provided, the call is rejected unless
+   * it still matches the chain's active step. Omit for simple tasks.
+   *
    * Implemented in Slice 2 (simple) / Slice 3 (chain).
    */
-  completeTask(taskId: string, who: Owner): Promise<Task>;
+  completeTask(
+    taskId: string,
+    who: Owner,
+    expectedStepId?: string | null,
+  ): Promise<Task>;
 
   /** Append a completion record. */
   recordCompletion(completion: Omit<CompletionRow, "id">): Promise<void>;

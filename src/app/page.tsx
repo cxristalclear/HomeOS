@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
 import type { Owner, Task } from "@/lib/domain/types";
-import { bucketTasks } from "@/lib/engine/buckets";
+import { bucketTasks, type BucketItem } from "@/lib/engine/buckets";
 import { overdueLabel } from "@/lib/engine/due";
 import { ownerInView, viewAttribution, type View } from "@/lib/engine/view";
 
@@ -31,6 +32,8 @@ export default function Page() {
   const [view, setView] = useState<View>("all");
   // task awaiting a "who?" answer (only happens in All view)
   const [asking, setAsking] = useState<Task | null>(null);
+  // tasks with a completion in flight — guards against rapid repeat taps
+  const [completing, setCompleting] = useState<Record<string, boolean>>({});
   // freeze "now" for the render so bucketing is stable across re-renders
   const [now] = useState(() => Date.now());
 
@@ -42,16 +45,45 @@ export default function Page() {
 
   const buckets = useMemo(() => {
     if (!tasks) return [];
-    const visible = tasks.filter((t) => ownerInView(t.owner, view));
-    return bucketTasks(visible, now);
+    // Filter on the *surfaced* owner (the active step's owner for a chain, not
+    // the chain's null owner), then drop buckets left empty. This is what keeps
+    // a chain step out of the wrong person's view.
+    return bucketTasks(tasks, now)
+      .map((b) => ({
+        ...b,
+        items: b.items.filter((it) => ownerInView(it.owner, view)),
+      }))
+      .filter((b) => b.items.length > 0);
   }, [tasks, view, now]);
 
   const todayCount =
     buckets.find((b) => b.label === "Today")?.items.length ?? 0;
 
   const complete = useCallback(
-    async (task: Task, who: Owner) => {
-      await getRepository().completeTask(task.id, who);
+    async (task: Task, who: Owner, expectedStepId?: string | null) => {
+      // Re-entrancy guard: ignore a repeat tap while this task is mid-complete,
+      // so a double-tap can't fire two completions before the refresh lands.
+      let started = false;
+      setCompleting((prev) => {
+        if (prev[task.id]) return prev;
+        started = true;
+        return { ...prev, [task.id]: true };
+      });
+      if (!started) return;
+
+      try {
+        await getRepository().completeTask(task.id, who, expectedStepId);
+      } catch {
+        // A stale chain completion (e.g. double-tap, or another tab already
+        // advanced the handoff) is rejected by the repo. Swallow it and let the
+        // refresh below re-render the real current state.
+      } finally {
+        setCompleting((prev) => {
+          const next = { ...prev };
+          delete next[task.id];
+          return next;
+        });
+      }
       setAsking(null);
       refresh();
     },
@@ -59,28 +91,43 @@ export default function Page() {
   );
 
   const onDone = useCallback(
-    (task: Task) => {
+    (item: BucketItem) => {
+      // A chain step has a fixed owner — the system owns the handoff, so it
+      // attributes to that person and never asks "who?", in any view. Pass the
+      // surfaced step id so a stale/replayed tap can't complete a step that has
+      // since handed off to someone else.
+      if (item.task.kind === "chain") {
+        if (item.owner && item.stepId) {
+          complete(item.task, item.owner, item.stepId);
+        }
+        return;
+      }
       const who = viewAttribution(view);
-      if (who === null) setAsking(task); // All view → ask
-      else complete(task, who);
+      if (who === null) setAsking(item.task); // All view → ask
+      else complete(item.task, who);
     },
     [view, complete],
   );
 
   return (
-    <main className="mx-auto max-w-md px-5 pb-24 pt-8">
+    <main className="mx-auto max-w-md px-5 pb-24 pt-8 sm:max-w-3xl sm:px-8 sm:pt-12">
       <div className="mb-1 flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-800">
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-800 sm:text-3xl">
           Home
         </h1>
-        <span className="text-xs text-stone-400">{todayCount} today</span>
+        <div className="flex items-baseline gap-3">
+          <span className="text-xs text-stone-400">{todayCount} today</span>
+          <Link href="/manage" className="text-sm font-medium text-stone-400">
+            Manage
+          </Link>
+        </div>
       </div>
       <p className="mb-5 text-sm text-stone-400">
         Today&apos;s the short list. The rest is spread across the week — nothing
         owed for what slips.
       </p>
 
-      <div className="mb-6 flex gap-1 rounded-xl bg-stone-100 p-1 text-sm font-medium">
+      <div className="mb-6 flex gap-1 rounded-xl bg-stone-100 p-1 text-sm font-medium sm:max-w-sm">
         {VIEWS.map(([key, label]) => (
           <button
             key={key}
@@ -105,12 +152,15 @@ export default function Page() {
           <div className="text-sm">Nothing due. Go do your own thing.</div>
         </div>
       ) : (
-        <div className="space-y-7">
+        <div className="grid grid-cols-1 gap-y-7 sm:grid-cols-2 sm:gap-x-8">
           {buckets.map((bucket) => {
             const isToday = bucket.label === "Today";
             const isLater = bucket.order === 99;
+            // Today and Later span the full width; the weekday buckets between
+            // them flow into two columns on iPad so the week reads at a glance.
+            const span = isToday || isLater ? "sm:col-span-2" : "";
             return (
-              <section key={bucket.key}>
+              <section key={bucket.key} className={span}>
                 <div className="mb-2 flex items-baseline gap-2 px-1">
                   <span
                     className={
@@ -126,21 +176,28 @@ export default function Page() {
                 </div>
 
                 <div className={isLater ? "space-y-1" : "space-y-2"}>
-                  {bucket.items.map(({ task, since }) =>
-                    isLater ? (
-                      <div
-                        key={task.id}
-                        className="flex items-center gap-3 px-4 py-2 text-stone-400"
-                      >
-                        <span
-                          className={
-                            "h-1.5 w-1.5 shrink-0 rounded-full " +
-                            OWNER_DOT[task.owner ?? "anyone"]
-                          }
-                        />
-                        <span className="truncate text-sm">{task.name}</span>
-                      </div>
-                    ) : (
+                  {bucket.items.map((item) => {
+                    const { task, since, owner, stepLabel, stepId } = item;
+                    // Chains are actionable only when their step is surfaced to
+                    // its owner (stepId set); simple tasks can be done anytime.
+                    const actionable = task.kind === "simple" || stepId !== null;
+                    if (isLater) {
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex items-center gap-3 px-4 py-2 text-stone-400"
+                        >
+                          <span
+                            className={
+                              "h-1.5 w-1.5 shrink-0 rounded-full " +
+                              OWNER_DOT[owner ?? "anyone"]
+                            }
+                          />
+                          <span className="truncate text-sm">{task.name}</span>
+                        </div>
+                      );
+                    }
+                    return (
                       <div
                         key={task.id}
                         className="flex items-center gap-3 rounded-2xl border border-stone-100 bg-white px-4 py-3 shadow-sm"
@@ -148,7 +205,7 @@ export default function Page() {
                         <span
                           className={
                             "h-2 w-2 shrink-0 rounded-full " +
-                            OWNER_DOT[task.owner ?? "anyone"]
+                            OWNER_DOT[owner ?? "anyone"]
                           }
                         />
                         <div className="min-w-0 flex-1">
@@ -156,21 +213,25 @@ export default function Page() {
                             {task.name}
                           </div>
                           <div className="text-xs text-stone-400">
+                            {stepLabel ? stepLabel + " · " : ""}
                             {task.area}
                             {isToday && since !== null
                               ? " · " + overdueLabel(since, now)
                               : ""}
                           </div>
                         </div>
-                        <button
-                          onClick={() => onDone(task)}
-                          className="shrink-0 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 active:bg-emerald-100"
-                        >
-                          Done
-                        </button>
+                        {actionable && (
+                          <button
+                            onClick={() => onDone(item)}
+                            disabled={!!completing[task.id]}
+                            className="shrink-0 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 active:bg-emerald-100 disabled:opacity-40"
+                          >
+                            Done
+                          </button>
+                        )}
                       </div>
-                    ),
-                  )}
+                    );
+                  })}
                 </div>
               </section>
             );

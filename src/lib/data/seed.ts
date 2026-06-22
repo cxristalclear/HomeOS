@@ -1,4 +1,4 @@
-import type { Owner, TaskRow } from "@/lib/domain/types";
+import type { Owner, TaskRow, TaskStepRow } from "@/lib/domain/types";
 import { DAY, startOfDay } from "@/lib/engine/time";
 
 /**
@@ -10,9 +10,10 @@ import { DAY, startOfDay } from "@/lib/engine/time";
  *  - weekly tasks are anchored as "done last cycle" (last_completed_at = the
  *    most recent past occurrence) so they surface on their next scheduled day.
  *
- * All seed tasks are simple. Chains arrive in Slice 3 / the Manage editor; the
- * skeleton's split tasks (e.g. laundry wash / finish) stay as separate simple
- * tasks here, faithful to the skeleton.
+ * The simple tasks are faithful to the skeleton (the laundry wash / finish split
+ * stays as two separate simple tasks). The one chain — Dishwasher (Load→her,
+ * Unload→me) — is seeded by `buildSeedChains` to demo the managed handoff; it's
+ * the most-visible handoff in the why-doc, so it earns a permanent seed slot.
  */
 
 interface IntervalSeed {
@@ -104,4 +105,41 @@ export function buildSeedTasks(now: number): TaskRow[] {
   });
 
   return [...intervals, ...weeklies];
+}
+
+/**
+ * Seed chains and their steps. Dishwasher recurs daily and is anchored as
+ * "done yesterday" so it's active at step 0 (Load → her) on first open — the
+ * handoff is immediately visible to review.
+ */
+export function buildSeedChains(now: number): {
+  chainTasks: TaskRow[];
+  chainSteps: TaskStepRow[];
+} {
+  const today = startOfDay(now);
+  const dishId = "seed-chain-0";
+
+  const chainTasks: TaskRow[] = [
+    {
+      id: dishId,
+      name: "Dishwasher",
+      area: "Kitchen",
+      kind: "chain",
+      owner: null,
+      cadence_type: "interval",
+      every_days: 1,
+      days: null,
+      last_completed_at: today - DAY, // every day, done yesterday => due today
+      active_step: null,
+      active_step_since: null,
+      created_at: now,
+    },
+  ];
+
+  const chainSteps: TaskStepRow[] = [
+    { id: `${dishId}-s0`, task_id: dishId, position: 0, label: "Load", owner: "her" },
+    { id: `${dishId}-s1`, task_id: dishId, position: 1, label: "Unload", owner: "me" },
+  ];
+
+  return { chainTasks, chainSteps };
 }
