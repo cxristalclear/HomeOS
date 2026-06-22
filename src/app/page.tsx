@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
 import type { Owner, Task } from "@/lib/domain/types";
@@ -86,7 +87,12 @@ export default function Page() {
         <h1 className="text-2xl font-semibold tracking-tight text-stone-800">
           Home
         </h1>
-        <span className="text-xs text-stone-400">{todayCount} today</span>
+        <div className="flex items-baseline gap-3">
+          <span className="text-xs text-stone-400">{todayCount} today</span>
+          <Link href="/manage" className="text-sm font-medium text-stone-400">
+            Manage
+          </Link>
+        </div>
       </div>
       <p className="mb-5 text-sm text-stone-400">
         Today&apos;s the short list. The rest is spread across the week — nothing
