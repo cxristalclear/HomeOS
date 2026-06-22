@@ -203,7 +203,16 @@ export default function Page() {
           <div className="text-sm">Nothing due. Go do your own thing.</div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-y-7 sm:grid-cols-2 sm:gap-x-8">
+        <>
+          {/* Today is clear but the week ahead isn't empty — give the "you're
+              done for today" reassurance while still showing what's coming. */}
+          {todayCount === 0 && (
+            <div className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-700">
+              <span className="text-base leading-none">✓</span>
+              <span>Nothing due today — go do your own thing.</span>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-y-7 sm:grid-cols-2 sm:gap-x-8">
           {buckets.map((bucket) => {
             const isToday = bucket.label === "Today";
             const isLater = bucket.order === 99;
@@ -287,7 +296,8 @@ export default function Page() {
               </section>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
 
       {asking && (
