@@ -1,4 +1,11 @@
-import type { CompletionRow, Owner, Task, TaskStepRow } from "@/lib/domain/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  CompletionRow,
+  Owner,
+  Task,
+  TaskRow,
+  TaskStepRow,
+} from "@/lib/domain/types";
 import type { NewTask, TaskRepository } from "./TaskRepository";
 
 /**
@@ -29,18 +36,24 @@ const NOT_WIRED =
   "SupabaseTaskRepository is a Slice 5 stub — not wired yet. " +
   "The MVP runs on LocalStorageTaskRepository (see repository.ts).";
 
+/** A `tasks` row with its `task_steps` embedded by the join select. */
+type TaskRowWithSteps = TaskRow & { task_steps: TaskStepRow[] };
+
 export class SupabaseTaskRepository implements TaskRepository {
-  /**
-   * A future constructor takes the Supabase client (URL + anon key from env).
-   * Left untyped here to avoid pulling in `@supabase/supabase-js` before it's
-   * an actual dependency.
-   */
-  constructor(_client?: unknown) {
-    void _client;
-  }
+  constructor(private readonly client: SupabaseClient) {}
 
   async listTasks(): Promise<Task[]> {
-    throw new Error(NOT_WIRED);
+    // One query: tasks with their steps embedded via the task_steps FK.
+    const { data, error } = await this.client
+      .from("tasks")
+      .select("*, task_steps(*)");
+    if (error) throw error;
+
+    const rows = (data ?? []) as unknown as TaskRowWithSteps[];
+    return rows.map(({ task_steps, ...task }) => ({
+      ...task,
+      steps: [...task_steps].sort((a, b) => a.position - b.position),
+    }));
   }
 
   async createTask(_input: NewTask): Promise<Task> {

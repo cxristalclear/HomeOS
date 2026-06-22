@@ -38,3 +38,8 @@ jobs:
 
       - name: Test
         run: npm test
+        # Gated Supabase integration tests run only when these repo secrets are
+        # set; otherwise they skip and the rest of the suite runs creds-free.
+        env:
+          SUPABASE_TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
+          SUPABASE_TEST_ANON_KEY: ${{ secrets.SUPABASE_TEST_ANON_KEY }}
