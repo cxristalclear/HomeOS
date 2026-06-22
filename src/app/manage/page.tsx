@@ -147,9 +147,9 @@ export default function ManagePage() {
   );
 
   return (
-    <main className="mx-auto max-w-md px-5 pb-24 pt-8">
+    <main className="mx-auto max-w-md px-5 pb-24 pt-8 sm:max-w-3xl sm:px-8 sm:pt-12">
       <div className="mb-1 flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-800">
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-800 sm:text-3xl">
           Manage
         </h1>
         <Link href="/" className="text-sm font-medium text-stone-400">
@@ -164,7 +164,7 @@ export default function ManagePage() {
       {form === null && (
         <button
           onClick={() => setForm(blankForm())}
-          className="mb-6 w-full rounded-2xl border border-dashed border-stone-300 py-3 text-sm font-medium text-stone-500 active:bg-stone-100"
+          className="mb-6 w-full rounded-2xl border border-dashed border-stone-300 py-3 text-sm font-medium text-stone-500 active:bg-stone-100 sm:max-w-md"
         >
           + Add task
         </button>
@@ -183,7 +183,7 @@ export default function ManagePage() {
       {tasks === null ? (
         <p className="text-sm text-stone-400">Loading…</p>
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {tasks.map((task) => (
             <div
               key={task.id}
@@ -299,7 +299,7 @@ function Editor({
     });
 
   return (
-    <div className="mb-6 space-y-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+    <div className="mb-6 space-y-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:max-w-md">
       <div className="text-sm font-semibold text-stone-800">
         {form.id === null ? "New task" : "Edit task"}
       </div>

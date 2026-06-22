@@ -82,9 +82,9 @@ export default function Page() {
   );
 
   return (
-    <main className="mx-auto max-w-md px-5 pb-24 pt-8">
+    <main className="mx-auto max-w-md px-5 pb-24 pt-8 sm:max-w-3xl sm:px-8 sm:pt-12">
       <div className="mb-1 flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-800">
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-800 sm:text-3xl">
           Home
         </h1>
         <div className="flex items-baseline gap-3">
@@ -99,7 +99,7 @@ export default function Page() {
         owed for what slips.
       </p>
 
-      <div className="mb-6 flex gap-1 rounded-xl bg-stone-100 p-1 text-sm font-medium">
+      <div className="mb-6 flex gap-1 rounded-xl bg-stone-100 p-1 text-sm font-medium sm:max-w-sm">
         {VIEWS.map(([key, label]) => (
           <button
             key={key}
@@ -124,12 +124,15 @@ export default function Page() {
           <div className="text-sm">Nothing due. Go do your own thing.</div>
         </div>
       ) : (
-        <div className="space-y-7">
+        <div className="grid grid-cols-1 gap-y-7 sm:grid-cols-2 sm:gap-x-8">
           {buckets.map((bucket) => {
             const isToday = bucket.label === "Today";
             const isLater = bucket.order === 99;
+            // Today and Later span the full width; the weekday buckets between
+            // them flow into two columns on iPad so the week reads at a glance.
+            const span = isToday || isLater ? "sm:col-span-2" : "";
             return (
-              <section key={bucket.key}>
+              <section key={bucket.key} className={span}>
                 <div className="mb-2 flex items-baseline gap-2 px-1">
                   <span
                     className={
