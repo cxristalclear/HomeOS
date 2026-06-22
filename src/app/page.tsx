@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
 import type { Owner, Task } from "@/lib/domain/types";
 import { bucketTasks, type BucketItem } from "@/lib/engine/buckets";
@@ -14,10 +14,12 @@ const OWNER_DOT: Record<Owner, string> = {
   anyone: "bg-stone-300",
 };
 
+// Display labels for the views. The underlying owner values stay "me"/"her";
+// these are just what the two people are called on screen.
 const VIEWS: Array<[View, string]> = [
   ["all", "All"],
-  ["me", "Me"],
-  ["her", "Her"],
+  ["me", "Christal"],
+  ["her", "Syd"],
 ];
 
 /**
@@ -32,8 +34,11 @@ export default function Page() {
   const [view, setView] = useState<View>("all");
   // task awaiting a "who?" answer (only happens in All view)
   const [asking, setAsking] = useState<Task | null>(null);
-  // tasks with a completion in flight — guards against rapid repeat taps
+  // tasks with a completion in flight — `completing` drives the disabled button
+  // styling; `inFlight` is the synchronous source of truth for the re-entrancy
+  // guard (state updaters run too late to gate the call below).
   const [completing, setCompleting] = useState<Record<string, boolean>>({});
+  const inFlight = useRef<Set<string>>(new Set());
   // "now" drives day bucketing. Stable across ordinary re-renders, but it must
   // advance when the calendar day changes — otherwise a long-open tab is stuck
   // showing yesterday's "Today" (see the midnight effect below).
@@ -79,6 +84,17 @@ export default function Page() {
     };
   }, [refresh]);
 
+  // Esc closes the "who?" prompt — touch uses the backdrop tap, this covers
+  // keyboard users.
+  useEffect(() => {
+    if (!asking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAsking(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [asking]);
+
   const buckets = useMemo(() => {
     if (!tasks) return [];
     // Filter on the *surfaced* owner (the active step's owner for a chain, not
@@ -99,13 +115,10 @@ export default function Page() {
     async (task: Task, who: Owner, expectedStepId?: string | null) => {
       // Re-entrancy guard: ignore a repeat tap while this task is mid-complete,
       // so a double-tap can't fire two completions before the refresh lands.
-      let started = false;
-      setCompleting((prev) => {
-        if (prev[task.id]) return prev;
-        started = true;
-        return { ...prev, [task.id]: true };
-      });
-      if (!started) return;
+      // Checked against a ref (synchronous) — a state flag wouldn't be set yet.
+      if (inFlight.current.has(task.id)) return;
+      inFlight.current.add(task.id);
+      setCompleting((prev) => ({ ...prev, [task.id]: true }));
 
       try {
         await getRepository().completeTask(task.id, who, expectedStepId);
@@ -114,6 +127,7 @@ export default function Page() {
         // advanced the handoff) is rejected by the repo. Swallow it and let the
         // refresh below re-render the real current state.
       } finally {
+        inFlight.current.delete(task.id);
         setCompleting((prev) => {
           const next = { ...prev };
           delete next[task.id];
@@ -168,6 +182,7 @@ export default function Page() {
           <button
             key={key}
             onClick={() => setView(key)}
+            aria-pressed={view === key}
             className={
               "flex-1 rounded-lg py-2 transition " +
               (view === key
@@ -281,6 +296,9 @@ export default function Page() {
           onClick={() => setAsking(null)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Who did ${asking.name}?`}
             className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -291,13 +309,13 @@ export default function Page() {
                 onClick={() => complete(asking, "me")}
                 className="flex-1 rounded-2xl bg-sky-50 py-3 font-medium text-sky-700 active:bg-sky-100"
               >
-                Me
+                Christal
               </button>
               <button
                 onClick={() => complete(asking, "her")}
                 className="flex-1 rounded-2xl bg-rose-50 py-3 font-medium text-rose-600 active:bg-rose-100"
               >
-                Her
+                Syd
               </button>
             </div>
           </div>

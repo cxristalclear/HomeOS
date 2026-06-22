@@ -21,8 +21,8 @@ import type {
 
 const OWNERS: Owner[] = ["me", "her", "anyone"];
 const OWNER_LABEL: Record<Owner, string> = {
-  me: "Me",
-  her: "Her",
+  me: "Christal",
+  her: "Syd",
   anyone: "Anyone",
 };
 const OWNER_DOT: Record<Owner, string> = {
