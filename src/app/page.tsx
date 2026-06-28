@@ -96,6 +96,11 @@ export default function Page() {
         localStorage.getItem("homeos.view") ||
         localStorage.getItem("homeos.pushOwner");
       if (stored === "me" || stored === "her" || stored === "all") {
+        // Intentional post-hydration setState: the saved view lives in
+        // localStorage (client-only), so it can't seed useState without
+        // desyncing SSR and tripping a hydration mismatch on the toggle. This is
+        // the one-time read the rule can't tell apart from a derived-state misuse.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setView(stored);
       }
     } catch {
