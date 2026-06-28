@@ -90,17 +90,47 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Filled during roadmap creation.
+Which phases cover which requirements.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by the roadmapper) | — | Pending |
+| WAMB-01 | Phase 1 | Pending |
+| WAMB-02 | Phase 1 | Pending |
+| WAMB-03 | Phase 1 | Pending |
+| WAMB-04 | Phase 1 | Pending |
+| WAMB-05 | Phase 1 | Pending |
+| WAMB-06 | Phase 1 | Pending |
+| FND-01 | Phase 2 | Pending |
+| FND-02 | Phase 2 | Pending |
+| FND-03 | Phase 2 | Pending |
+| FND-04 | Phase 2 | Pending |
+| FND-05 | Phase 2 | Pending |
+| WAWK-01 | Phase 3 | Pending |
+| WAWK-02 | Phase 3 | Pending |
+| WAWK-03 | Phase 3 | Pending |
+| WAWK-04 | Phase 3 | Pending |
+| WAWK-05 | Phase 3 | Pending |
+| WNAV-01 | Phase 3 | Pending |
+| WNAV-02 | Phase 3 | Pending |
+| WNAV-03 | Phase 3 | Pending |
+| WRAIL-01 | Phase 4 | Pending |
+| WRAIL-02 | Phase 4 | Pending |
+| WRAIL-03 | Phase 4 | Pending |
+| ACT-01 | Phase 5 | Pending |
+| ACT-02 | Phase 5 | Pending |
+| WRAIL-04 | Phase 5 | Pending |
+| WLIVE-01 | Phase 6 | Pending |
+| WLIVE-02 | Phase 6 | Pending |
+| WLIVE-03 | Phase 6 | Pending |
+| ROLL-01 | Phase 7 | Pending |
+| ROLL-02 | Phase 7 | Pending |
+| ROLL-03 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 28 total
-- Mapped to phases: 0 (pre-roadmap)
-- Unmapped: 28 ⚠️ (resolved at roadmap creation)
+- Mapped to phases: 28 (100%)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-28*
-*Last updated: 2026-06-28 after initial definition*
+*Last updated: 2026-06-28 — traceability populated after roadmap creation*
