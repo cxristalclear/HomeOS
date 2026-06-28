@@ -35,6 +35,35 @@ export interface TaskRow {
   active_step: number | null;
   active_step_since: number | null;
   created_at: number;
+  /**
+   * The Room this task is placed in, or `null` when un-placed — a null `room_id`
+   * means the task is an **Errand** (location-less). Replaces the legacy free-text
+   * `area`, which is kept (vestigial) until a later cleanup. See ADR 004.
+   */
+  room_id: string | null;
+}
+
+/**
+ * A row in `floors` — a level of the home, above Room. The wall shows one Floor at
+ * a time, ordered by `level`. See docs/UBIQUITOUS_LANGUAGE.md ("Floor").
+ */
+export interface Floor {
+  id: string;
+  name: string;
+  level: number;
+}
+
+/**
+ * A row in `rooms` — a configured place on a Floor, with an icon and a floor-plan
+ * `slot` (its position in that Floor's layout). A Task references a Room via
+ * `room_id`; a Task with no Room is an Errand. See UBIQUITOUS_LANGUAGE.md ("Room").
+ */
+export interface Room {
+  id: string;
+  name: string;
+  icon: string;
+  floor_id: string;
+  slot: number;
 }
 
 /** A row in `task_steps` (chains only), ordered by `position`. */

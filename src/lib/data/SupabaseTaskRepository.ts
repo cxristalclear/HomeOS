@@ -1,12 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CompletionRow,
+  Floor,
   Owner,
+  Room,
   Task,
   TaskRow,
   TaskStepRow,
 } from "@/lib/domain/types";
-import type { NewTask, TaskRepository } from "./TaskRepository";
+import type {
+  NewFloor,
+  NewRoom,
+  NewTask,
+  TaskRepository,
+} from "./TaskRepository";
 import { activeStep, advanceChain } from "@/lib/engine/chain";
 
 /**
@@ -58,6 +65,19 @@ export class SupabaseTaskRepository implements TaskRepository {
     }));
   }
 
+  async listLayout(): Promise<{ floors: Floor[]; rooms: Room[] }> {
+    const [floorsRes, roomsRes] = await Promise.all([
+      this.client.from("floors").select("*").order("level"),
+      this.client.from("rooms").select("*"),
+    ]);
+    if (floorsRes.error) throw floorsRes.error;
+    if (roomsRes.error) throw roomsRes.error;
+    return {
+      floors: (floorsRes.data ?? []) as unknown as Floor[],
+      rooms: (roomsRes.data ?? []) as unknown as Room[],
+    };
+  }
+
   /** Re-select a single task with its steps joined and ordered by position. */
   private async getJoinedTask(id: string): Promise<Task> {
     const { data, error } = await this.client
@@ -89,6 +109,7 @@ export class SupabaseTaskRepository implements TaskRepository {
       active_step: null, // chains start resting; activation is computed from cadence
       active_step_since: null,
       created_at: Date.now(),
+      room_id: input.room_id ?? null, // un-placed (Errand) unless a Room is given
     };
 
     const { error: taskError } = await this.client.from("tasks").insert(row);
@@ -245,5 +266,62 @@ export class SupabaseTaskRepository implements TaskRepository {
     const { data, error } = await this.client.from("completions").select("*");
     if (error) throw error;
     return (data ?? []) as unknown as CompletionRow[];
+  }
+
+  // --- Layout management. Deletes lean on the FKs from migration 0003: a Floor
+  // cascades to its Rooms, and a Room's tasks fall to Errand (room_id SET NULL). ---
+
+  async createFloor(input: NewFloor): Promise<Floor> {
+    const floor: Floor = { id: newId("floor"), ...input };
+    const { error } = await this.client.from("floors").insert(floor);
+    if (error) throw error;
+    return floor;
+  }
+
+  async updateFloor(
+    id: string,
+    patch: Partial<Omit<Floor, "id">>,
+  ): Promise<Floor> {
+    const { error } = await this.client.from("floors").update(patch).eq("id", id);
+    if (error) throw error;
+    const { data, error: selError } = await this.client
+      .from("floors")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (selError) throw selError;
+    return data as unknown as Floor;
+  }
+
+  async deleteFloor(id: string): Promise<void> {
+    const { error } = await this.client.from("floors").delete().eq("id", id);
+    if (error) throw error;
+  }
+
+  async createRoom(input: NewRoom): Promise<Room> {
+    const room: Room = { id: newId("room"), ...input };
+    const { error } = await this.client.from("rooms").insert(room);
+    if (error) throw error;
+    return room;
+  }
+
+  async updateRoom(
+    id: string,
+    patch: Partial<Omit<Room, "id">>,
+  ): Promise<Room> {
+    const { error } = await this.client.from("rooms").update(patch).eq("id", id);
+    if (error) throw error;
+    const { data, error: selError } = await this.client
+      .from("rooms")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (selError) throw selError;
+    return data as unknown as Room;
+  }
+
+  async deleteRoom(id: string): Promise<void> {
+    const { error } = await this.client.from("rooms").delete().eq("id", id);
+    if (error) throw error;
   }
 }

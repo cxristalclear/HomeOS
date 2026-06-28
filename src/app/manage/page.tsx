@@ -12,7 +12,9 @@ import {
 } from "@/lib/data/pushSubscriptions";
 import type {
   CadenceType,
+  Floor,
   Owner,
+  Room,
   Task,
   TaskKind,
 } from "@/lib/domain/types";
@@ -51,7 +53,8 @@ const WEEKDAY_LABELS = [
 interface FormState {
   id: string | null; // null => creating a new task
   name: string;
-  area: string;
+  area: string; // legacy/vestigial — preserved, no longer edited (Room replaces it)
+  room_id: string | null; // null => Errand (location-less)
   kind: TaskKind;
   owner: Owner; // simple tasks only
   cadenceType: CadenceType;
@@ -64,6 +67,7 @@ const blankForm = (): FormState => ({
   id: null,
   name: "",
   area: "",
+  room_id: null, // new tasks start as Errands until placed in a Room
   kind: "simple",
   owner: "anyone",
   cadenceType: "interval",
@@ -77,6 +81,7 @@ function formFromTask(task: Task): FormState {
     id: task.id,
     name: task.name,
     area: task.area,
+    room_id: task.room_id,
     kind: task.kind,
     owner: task.owner ?? "anyone",
     cadenceType: task.cadence_type,
@@ -103,41 +108,54 @@ function cadenceSummary(task: Task): string {
 
 export default function ManagePage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [layout, setLayout] = useState<{ floors: Floor[]; rooms: Room[] }>({
+    floors: [],
+    rooms: [],
+  });
   const [form, setForm] = useState<FormState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const refresh = useCallback(() => {
-    getRepository().listTasks().then(setTasks);
+    const repo = getRepository();
+    repo.listTasks().then(setTasks);
+    repo.listLayout().then(setLayout);
   }, []);
 
   useEffect(refresh, [refresh]);
 
-  // Group tasks by area for calm, scannable sections. Tasks with no area fall
-  // into an "Unsorted" group shown last. Purely a display transform — the
-  // underlying list and its order from the repo are untouched.
+  // Group tasks by Room for calm, scannable sections — Rooms ordered by Floor
+  // (level) then slot, with Errands (no Room) last. Purely a display transform.
   const groups = useMemo(() => {
     if (!tasks) return [];
-    const byArea = new Map<string, Task[]>();
+    const roomById = new Map(layout.rooms.map((r) => [r.id, r]));
+    const floorLevel = new Map(layout.floors.map((f) => [f.id, f.level]));
+
+    const byKey = new Map<string, Task[]>();
     for (const task of tasks) {
-      const area = task.area.trim();
-      const key = area.length > 0 ? area : "";
-      const list = byArea.get(key);
+      // unknown/missing room (or null) groups under Errands
+      const key =
+        task.room_id && roomById.has(task.room_id) ? task.room_id : "";
+      const list = byKey.get(key);
       if (list) list.push(task);
-      else byArea.set(key, [task]);
+      else byKey.set(key, [task]);
     }
-    return Array.from(byArea.entries())
-      .map(([area, items]) => ({
-        area,
-        label: area.length > 0 ? area : "Unsorted",
-        items,
-      }))
-      .sort((a, b) => {
-        // Real areas first (alphabetical), Unsorted last.
-        if (a.area === "" && b.area !== "") return 1;
-        if (b.area === "" && a.area !== "") return -1;
-        return a.label.localeCompare(b.label);
-      });
-  }, [tasks]);
+
+    const roomGroups = layout.rooms
+      .filter((r) => byKey.has(r.id))
+      .sort(
+        (a, b) =>
+          (floorLevel.get(a.floor_id) ?? 0) - (floorLevel.get(b.floor_id) ?? 0) ||
+          a.slot - b.slot,
+      )
+      .map((r) => ({ key: r.id, label: r.name, items: byKey.get(r.id)! }));
+
+    const errandItems = byKey.get("");
+    const errandGroup = errandItems
+      ? [{ key: "errands", label: "Errands", items: errandItems }]
+      : [];
+
+    return [...roomGroups, ...errandGroup];
+  }, [tasks, layout]);
 
   const isValid =
     form != null &&
@@ -157,6 +175,7 @@ export default function ManagePage() {
     const fields = {
       name: form.name.trim(),
       area: form.area.trim(),
+      room_id: form.room_id, // null => Errand
       kind: form.kind,
       owner: form.kind === "chain" ? null : form.owner,
       cadence_type: form.cadenceType,
@@ -220,6 +239,13 @@ export default function ManagePage() {
         due, when, and whose turn it is.
       </p>
 
+      <Link
+        href="/settings"
+        className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-stone-500 transition active:text-stone-700"
+      >
+        Rooms &amp; floors →
+      </Link>
+
       <NotificationsCard />
 
       {form === null && (
@@ -236,6 +262,7 @@ export default function ManagePage() {
         <Editor
           form={form}
           setForm={setForm}
+          layout={layout}
           onSave={save}
           onCancel={() => setForm(null)}
           canSave={isValid}
@@ -253,7 +280,7 @@ export default function ManagePage() {
       ) : (
         <div className="space-y-7">
           {groups.map((group) => (
-            <section key={group.label}>
+            <section key={group.key}>
               <div className="mb-2 flex items-baseline gap-2 px-1">
                 <h2 className="text-sm font-semibold text-stone-800">
                   {group.label}
@@ -473,6 +500,7 @@ function Pill({
 function Editor({
   form,
   setForm,
+  layout,
   onSave,
   onCancel,
   canSave,
@@ -480,11 +508,18 @@ function Editor({
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState | null>>;
+  layout: { floors: Floor[]; rooms: Room[] };
   onSave: () => void;
   onCancel: () => void;
   canSave: boolean;
   isSaving: boolean;
 }) {
+  // Rooms grouped by Floor (level order) for the picker's optgroups.
+  const floorsInOrder = [...layout.floors].sort((a, b) => a.level - b.level);
+  const roomsByFloor = (floorId: string) =>
+    layout.rooms
+      .filter((r) => r.floor_id === floorId)
+      .sort((a, b) => a.slot - b.slot);
   const patch = (p: Partial<FormState>) =>
     setForm((f) => (f ? { ...f, ...p } : f));
 
@@ -535,13 +570,23 @@ function Editor({
           value={form.name}
           onChange={(e) => patch({ name: e.target.value })}
         />
-        <input
+        <select
           className={FIELD}
-          placeholder="Area (e.g. Kitchen)"
-          aria-label="Area"
-          value={form.area}
-          onChange={(e) => patch({ area: e.target.value })}
-        />
+          aria-label="Room"
+          value={form.room_id ?? ""}
+          onChange={(e) => patch({ room_id: e.target.value || null })}
+        >
+          <option value="">No room — Errand</option>
+          {floorsInOrder.map((floor) => (
+            <optgroup key={floor.id} label={floor.name}>
+              {roomsByFloor(floor.id).map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
       </div>
 
       {/* kind */}

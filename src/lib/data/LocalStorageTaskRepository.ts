@@ -1,19 +1,29 @@
 import type {
   CompletionRow,
+  Floor,
   Owner,
+  Room,
   Task,
   TaskRow,
   TaskStepRow,
 } from "@/lib/domain/types";
-import type { NewTask, TaskRepository } from "./TaskRepository";
+import type { NewFloor, NewRoom, NewTask, TaskRepository } from "./TaskRepository";
 import { activeStep, advanceChain } from "@/lib/engine/chain";
-import { buildSeedChains, buildSeedTasks } from "./seed";
+import {
+  backfillRoomIds,
+  buildSeedChains,
+  buildSeedLayout,
+  buildSeedTasks,
+} from "./seed";
 
 const KEYS = {
   tasks: "homeos.tasks",
   steps: "homeos.task_steps",
   completions: "homeos.completions",
+  floors: "homeos.floors",
+  rooms: "homeos.rooms",
   seeded: "homeos.seeded",
+  migratedRooms: "homeos.migrated_rooms",
 } as const;
 
 /**
@@ -60,10 +70,22 @@ export class LocalStorageTaskRepository implements TaskRepository {
     if (read<boolean>(KEYS.seeded, false)) return;
     const now = Date.now();
     const chains = buildSeedChains(now);
+    const layout = buildSeedLayout();
     write(KEYS.tasks, [...buildSeedTasks(now), ...chains.chainTasks]);
     write<TaskStepRow[]>(KEYS.steps, chains.chainSteps);
     write<CompletionRow[]>(KEYS.completions, []);
+    write<Floor[]>(KEYS.floors, layout.floors);
+    write<Room[]>(KEYS.rooms, layout.rooms);
     write(KEYS.seeded, true);
+  }
+
+  // One-time migration of pre-Slice-2 data: place any null-room tasks via the
+  // shared mapping. Idempotent and flag-gated, so a deliberately-Errand task
+  // created later is never re-placed.
+  private ensureRoomsBackfilled(): void {
+    if (read<boolean>(KEYS.migratedRooms, false)) return;
+    write(KEYS.tasks, backfillRoomIds(this.getTasks()));
+    write(KEYS.migratedRooms, true);
   }
 
   private getTasks(): TaskRow[] {
@@ -89,8 +111,18 @@ export class LocalStorageTaskRepository implements TaskRepository {
 
   async listTasks(): Promise<Task[]> {
     this.ensureSeeded();
+    this.ensureRoomsBackfilled();
     const steps = this.getSteps();
     return this.getTasks().map((row) => this.join(row, steps));
+  }
+
+  async listLayout(): Promise<{ floors: Floor[]; rooms: Room[] }> {
+    this.ensureSeeded();
+    const floors = read<Floor[]>(KEYS.floors, []).sort(
+      (a, b) => a.level - b.level,
+    );
+    const rooms = read<Room[]>(KEYS.rooms, []);
+    return { floors, rooms };
   }
 
   async createTask(input: NewTask): Promise<Task> {
@@ -109,6 +141,7 @@ export class LocalStorageTaskRepository implements TaskRepository {
       active_step: null, // chains start resting; activation is computed from cadence
       active_step_since: null,
       created_at: Date.now(),
+      room_id: input.room_id ?? null, // un-placed (Errand) unless a Room is given
     };
 
     const tasks = this.getTasks();
@@ -258,6 +291,99 @@ export class LocalStorageTaskRepository implements TaskRepository {
     this.ensureSeeded();
     const row: CompletionRow = { id: newId("done"), ...completion };
     write(KEYS.completions, [...this.getCompletions(), row]);
+  }
+
+  // --- Layout management ---
+
+  private getFloors(): Floor[] {
+    return read<Floor[]>(KEYS.floors, []);
+  }
+
+  private getRooms(): Room[] {
+    return read<Room[]>(KEYS.rooms, []);
+  }
+
+  async createFloor(input: NewFloor): Promise<Floor> {
+    this.ensureSeeded();
+    const floor: Floor = { id: newId("floor"), ...input };
+    write(KEYS.floors, [...this.getFloors(), floor]);
+    return floor;
+  }
+
+  async updateFloor(
+    id: string,
+    patch: Partial<Omit<Floor, "id">>,
+  ): Promise<Floor> {
+    this.ensureSeeded();
+    const floors = this.getFloors();
+    const idx = floors.findIndex((f) => f.id === id);
+    if (idx === -1) throw new Error(`updateFloor: no floor ${id}`);
+    const updated: Floor = { ...floors[idx], ...patch, id };
+    const next = [...floors];
+    next[idx] = updated;
+    write(KEYS.floors, next);
+    return updated;
+  }
+
+  async deleteFloor(id: string): Promise<void> {
+    this.ensureSeeded();
+    // Cascade: drop the floor's rooms, then re-home their tasks to Errand.
+    const doomedRoomIds = this.getRooms()
+      .filter((r) => r.floor_id === id)
+      .map((r) => r.id);
+    write(
+      KEYS.floors,
+      this.getFloors().filter((f) => f.id !== id),
+    );
+    write(
+      KEYS.rooms,
+      this.getRooms().filter((r) => r.floor_id !== id),
+    );
+    this.unplaceTasksInRooms(doomedRoomIds);
+  }
+
+  async createRoom(input: NewRoom): Promise<Room> {
+    this.ensureSeeded();
+    const room: Room = { id: newId("room"), ...input };
+    write(KEYS.rooms, [...this.getRooms(), room]);
+    return room;
+  }
+
+  async updateRoom(
+    id: string,
+    patch: Partial<Omit<Room, "id">>,
+  ): Promise<Room> {
+    this.ensureSeeded();
+    const rooms = this.getRooms();
+    const idx = rooms.findIndex((r) => r.id === id);
+    if (idx === -1) throw new Error(`updateRoom: no room ${id}`);
+    const updated: Room = { ...rooms[idx], ...patch, id };
+    const next = [...rooms];
+    next[idx] = updated;
+    write(KEYS.rooms, next);
+    return updated;
+  }
+
+  async deleteRoom(id: string): Promise<void> {
+    this.ensureSeeded();
+    write(
+      KEYS.rooms,
+      this.getRooms().filter((r) => r.id !== id),
+    );
+    this.unplaceTasksInRooms([id]);
+  }
+
+  // Re-home any task in the given rooms to Errand (null room_id) — the
+  // localStorage equivalent of the Supabase FK's ON DELETE SET NULL (ADR 004).
+  private unplaceTasksInRooms(roomIds: string[]): void {
+    if (roomIds.length === 0) return;
+    const drop = new Set(roomIds);
+    write(
+      KEYS.tasks,
+      this.getTasks().map((t) =>
+        t.room_id != null && drop.has(t.room_id) ? { ...t, room_id: null } : t,
+      ),
+    );
   }
 
   async listCompletions(): Promise<CompletionRow[]> {

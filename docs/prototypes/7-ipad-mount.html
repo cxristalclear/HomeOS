@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HomeOS — iPad Mount (sleep ↔ awake)</title>
+<style>
+  /* ───────────────────────────────────────────────────────────
+     ONE design system, two states. Sleep (ambient #6) and Awake
+     (floor plan #5) share: palette, type, owner colors, the
+     top bar, the left-main / right-rail split, and the bottom
+     no-debt line. Only the density and the left panel's content
+     change — so it reads as the same app waking up, not a swap.
+     ─────────────────────────────────────────────────────────── */
+  :root{
+    --bg-0:#16130f; --bg-1:#221b13;       /* warm near-black */
+    --panel:#221d16; --panel-2:#2a2319;
+    --line:#352d23; --line-soft:#2a241c;
+    --ink:#f6f1e9; --soft:#a89e92; --faint:#6b6157;
+    --me:#38bdf8; --her:#fb7185; --any:#a8a29e;
+    --go:#34d399; --go-ink:#06281e; --warn:#fbbf24;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:#0c0a08;color:var(--ink);
+    font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:18px;}
+
+  /* device frame */
+  .wall{position:relative;width:100%;max-width:1024px;aspect-ratio:16/10;max-height:84vh;
+    border-radius:26px;overflow:hidden;cursor:default;
+    background:radial-gradient(1200px 620px at 78% -12%,var(--bg-1),var(--bg-0) 62%);
+    transition:filter .6s ease;}
+  .wall.sleep{filter:brightness(.82) saturate(.9);cursor:pointer;}
+
+  /* persistent skeleton: header / main+rail / footer */
+  .grid{position:absolute;inset:0;display:grid;
+    grid-template-columns:1.55fr 1fr;grid-template-rows:auto 1fr auto;
+    grid-template-areas:"head head" "main rail" "foot rail";
+    padding:30px 34px;gap:0 30px;}
+
+  /* HEADER — identical in both states */
+  .head{grid-area:head;display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:1px solid var(--line);padding-bottom:14px;}
+  .clock{font-size:27px;font-weight:700;letter-spacing:-.02em;}
+  .clock span{color:var(--soft);font-weight:500;font-size:16px;margin-left:9px;}
+  .brand{display:flex;align-items:center;gap:18px;}
+  .people{display:flex;gap:18px;}
+  .person{display:flex;align-items:center;gap:8px;}
+  .ava{border-radius:50%;display:grid;place-items:center;font-weight:800;color:var(--go-ink);}
+  .ava.me{background:var(--me);} .ava.her{background:var(--her);}
+  .person .ava{width:28px;height:28px;font-size:12px;color:#0a1f2b;}
+  .person .ava.her{color:#3a0b14;}
+  .person .pl{font-size:11px;line-height:1.15;}
+  .person .pl b{display:block;font-size:13px;color:var(--ink);font-weight:700;}
+  .person .pl span{color:var(--soft);}
+  /* the toggle filter only shows when awake */
+  .seg{display:flex;gap:2px;background:#2a241c;border-radius:10px;padding:3px;opacity:0;transform:translateY(-4px);
+    transition:opacity .4s ease,transform .4s ease;pointer-events:none;}
+  .wall.awake .seg{opacity:1;transform:none;pointer-events:auto;}
+  .seg button{border:0;background:transparent;color:var(--soft);font:inherit;font-weight:700;font-size:12px;padding:6px 11px;border-radius:7px;cursor:pointer;}
+  .seg button[aria-pressed="true"]{background:#3c342a;color:var(--ink);}
+
+  /* MAIN (left) holds two crossfading layers */
+  .main{grid-area:main;position:relative;}
+  .layer{position:absolute;inset:0;transition:opacity .55s ease,transform .55s ease;}
+  /* sleep layer = ambient hero */
+  .l-sleep{display:flex;flex-direction:column;justify-content:center;}
+  .wall.awake .l-sleep{opacity:0;transform:scale(1.04);pointer-events:none;}
+  .kick{font-size:12px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--go);margin-bottom:13px;}
+  .l-sleep .owner{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .l-sleep .owner .ava{width:30px;height:30px;font-size:13px;}
+  .l-sleep .owner .ol{font-size:14px;color:var(--soft);font-weight:600;}
+  .l-sleep h1{font-size:58px;line-height:1.0;font-weight:800;letter-spacing:-.03em;margin:0 0 16px;}
+  .l-sleep .meta{font-size:16px;color:var(--soft);}
+  .l-sleep .meta .late{color:var(--warn);font-weight:700;}
+  .wake-hint{margin-top:30px;font-size:13px;color:var(--faint);letter-spacing:.04em;
+    animation:breathe 3.4s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{opacity:.45;}50%{opacity:.95;}}
+
+  /* awake layer = floor plan */
+  .l-awake{opacity:0;transform:scale(.97);pointer-events:none;}
+  .wall.awake .l-awake{opacity:1;transform:none;pointer-events:auto;}
+  .plan{height:100%;display:grid;gap:9px;
+    grid-template-columns:1.3fr 1fr 1fr;grid-template-rows:repeat(3,1fr);
+    grid-template-areas:"kitchen kitchen dining" "living living bath" "laundry studio house";}
+  .r{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:13px;
+    padding:9px 11px;display:flex;flex-direction:column;cursor:pointer;overflow:hidden;
+    transition:border-color .2s,background .2s;}
+  .r.quiet{background:#1d1810;border-color:var(--line-soft);}
+  .r:hover{border-color:#4a4030;}
+  .r.sel{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go);}
+  .r .nm{font-size:12.5px;font-weight:700;}
+  .r .nx{font-size:10.5px;color:var(--soft);margin-top:2px;line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .r .nx .h{color:var(--her);font-weight:700;}
+  .r .glyph{position:absolute;right:7px;bottom:5px;font-size:19px;opacity:.42;}
+  .r.quiet .glyph{opacity:.22;}
+  .pin{position:absolute;top:7px;right:8px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;
+    display:grid;place-items:center;font-size:11px;font-weight:800;color:#1a1207;background:var(--any);}
+  .pin.me{background:var(--me);}.pin.her{background:var(--her);}.pin.any{background:#8a847b;color:#100c07;}
+  .pin.hot{background:var(--warn);box-shadow:0 0 0 0 rgba(251,191,36,.5);animation:pulse 2.1s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(251,191,36,.4);}70%{box-shadow:0 0 0 8px rgba(251,191,36,0);}100%{box-shadow:0 0 0 0 rgba(251,191,36,0);}}
+  .r.quiet .check{position:absolute;top:7px;right:9px;color:var(--go);font-weight:800;font-size:12px;}
+  .startpin{position:absolute;left:8px;top:8px;display:flex;align-items:center;gap:4px;background:var(--go);color:var(--go-ink);
+    font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:3px 7px;border-radius:999px;}
+  .kitchen{grid-area:kitchen;}.dining{grid-area:dining;}.living{grid-area:living;}
+  .bath{grid-area:bath;}.laundry{grid-area:laundry;}.studio{grid-area:studio;}.house{grid-area:house;}
+
+  /* RIGHT RAIL holds two crossfading layers too */
+  .rail{grid-area:rail;position:relative;border-left:1px solid var(--line);padding-left:26px;}
+  .rail h2{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--soft);margin:4px 0 14px;}
+  .r-sleep{position:absolute;inset:0 0 0 26px;transition:opacity .5s ease;}
+  .wall.awake .r-sleep{opacity:0;pointer-events:none;}
+  .row{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line-soft);}
+  .row .d{width:9px;height:9px;border-radius:50%;flex:none;}
+  .d.me{background:var(--me);}.d.her{background:var(--her);}.d.any{background:var(--any);}
+  .row .tx{flex:1;font-size:16px;font-weight:600;}
+  .row .hint{font-size:12px;color:var(--faint);}
+  .row .hint.h{color:var(--her);font-weight:700;}
+
+  /* awake rail = selected room detail + Done */
+  .r-awake{position:absolute;inset:0 0 0 26px;opacity:0;pointer-events:none;transition:opacity .5s ease;}
+  .wall.awake .r-awake{opacity:1;pointer-events:auto;}
+  .roomhead{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+  .roomhead .g{font-size:22px;}
+  .roomhead .rn{font-size:18px;font-weight:800;letter-spacing:-.01em;}
+  .roomhead .startbadge{margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.05em;color:var(--go-ink);background:var(--go);padding:3px 8px;border-radius:999px;}
+  .roomsub{font-size:12px;color:var(--soft);margin-bottom:14px;}
+  .task{display:flex;align-items:center;gap:11px;padding:12px 0;border-top:1px solid var(--line-soft);}
+  .task .body{flex:1;min-width:0;}
+  .task .tt{font-weight:700;font-size:15px;}
+  .task .mm{font-size:11.5px;color:var(--soft);}
+  .late{color:var(--warn);font-weight:700;}
+  .go{flex:none;border:0;background:var(--go);color:var(--go-ink);font:inherit;font-weight:800;font-size:13px;padding:9px 15px;border-radius:11px;cursor:pointer;}
+  .go:active{transform:translateY(1px);}
+
+  /* FOOTER — identical no-debt line in both states */
+  .foot{grid-area:foot;display:flex;align-items:center;gap:13px;color:var(--faint);font-size:13px;padding-top:14px;}
+  .dots{display:flex;gap:5px;}
+  .dots i{width:7px;height:7px;border-radius:50%;background:#36302700;border:1px solid #3a332b;}
+  .dots i.on{background:var(--go);border-color:var(--go);}
+  .foot .msg{margin-left:auto;font-style:italic;}
+
+  /* demo control (not part of the app) */
+  .demo{display:flex;gap:8px;align-items:center;color:#8a8278;font-size:12px;}
+  .demo button{background:#1c1916;color:#cfc7bb;border:1px solid #34302a;border-radius:8px;padding:7px 13px;font:inherit;font-weight:600;cursor:pointer;}
+</style>
+</head>
+<body>
+  <div class="wall sleep" id="wall">
+    <div class="grid">
+      <!-- HEADER (persistent) -->
+      <div class="head">
+        <div class="clock">2:14<span id="phase">afternoon</span></div>
+        <div class="brand">
+          <div class="people">
+            <div class="person"><span class="ava me">C</span><span class="pl"><b>Christal</b><span>3 today</span></span></div>
+            <div class="person"><span class="ava her">S</span><span class="pl"><b>Syd</b><span>up next: dishes</span></span></div>
+          </div>
+          <div class="seg" role="tablist">
+            <button aria-pressed="true">All</button>
+            <button aria-pressed="false">Christal</button>
+            <button aria-pressed="false">Syd</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEFT MAIN: sleep hero  ⟷  awake floor plan -->
+      <div class="main">
+        <div class="layer l-sleep">
+          <div class="kick">▶ Do this next</div>
+          <div class="owner"><span class="ava me">C</span><span class="ol">Christal’s turn</span></div>
+          <h1>Laundry<br>wash</h1>
+          <div class="meta">Laundry · every 3 days · <span class="late">2 days over</span></div>
+          <div class="wake-hint">Tap anywhere to wake →</div>
+        </div>
+
+        <div class="layer l-awake">
+          <div class="plan">
+            <div class="r kitchen"><span class="pin hot">3</span><div class="nm">Kitchen</div><div class="nx"><span class="h">Syd</span> loads dishwasher → you</div><span class="glyph">🍳</span></div>
+            <div class="r dining quiet"><span class="check">✓</span><div class="nm">Dining</div><div class="nx">Sweep · tomorrow</div><span class="glyph">🍽️</span></div>
+            <div class="r living quiet"><span class="check">✓</span><div class="nm">Living room</div><div class="nx">Vacuum · tomorrow</div><span class="glyph">🛋️</span></div>
+            <div class="r bath quiet"><span class="check">✓</span><div class="nm">Bath</div><div class="nx">Deep clean ×3 · Sat</div><span class="glyph">🛁</span></div>
+            <div class="r laundry sel"><span class="startpin">★ START HERE</span><span class="pin me" style="top:auto;bottom:7px;">1</span><div class="nm" style="margin-top:13px;">Laundry</div><div class="nx">Wash — 2 days over</div><span class="glyph">🧺</span></div>
+            <div class="r studio quiet"><span class="check">✓</span><div class="nm">Studio</div><div class="nx">Reset · Mon</div><span class="glyph">🎨</span></div>
+            <div class="r house"><span class="pin any">1</span><div class="nm">House</div><div class="nx">Litter box</div><span class="glyph">🐾</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT RAIL: sleep "then today"  ⟷  awake room detail -->
+      <div class="rail">
+        <div class="r-sleep">
+          <h2>Then today</h2>
+          <div class="row"><span class="d her"></span><span class="tx">Dishwasher</span><span class="hint h">Syd loads</span></div>
+          <div class="row"><span class="d any"></span><span class="tx">Litter box</span><span class="hint">anyone</span></div>
+          <div class="row"><span class="d me"></span><span class="tx">Laundry — fold + away</span><span class="hint">you</span></div>
+        </div>
+
+        <div class="r-awake">
+          <div class="roomhead"><span class="g">🧺</span><span class="rn">Laundry</span><span class="startbadge">★ START HERE</span></div>
+          <div class="roomsub">2 tasks · tap a room on the left to switch</div>
+          <div class="task"><div class="body"><div class="tt">Laundry wash</div><div class="mm">every 3 days · <span class="late">2 days over</span></div></div><button class="go">Done</button></div>
+          <div class="task"><div class="body"><div class="tt">Laundry finish — fold + away</div><div class="mm">every 3 days · due today</div></div><button class="go">Done</button></div>
+        </div>
+      </div>
+
+      <!-- FOOTER (persistent, no-debt) -->
+      <div class="foot">
+        <div class="dots"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <span>2 done today</span>
+        <span class="msg">Nothing’s owed for what slipped. Just the next thing.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <span>Demo — the real mount wakes on tap/motion, sleeps when idle:</span>
+    <button id="toggle">Toggle sleep / awake</button>
+  </div>
+
+  <script>
+    const wall = document.getElementById('wall');
+    const wake = () => { wall.classList.remove('sleep'); wall.classList.add('awake'); };
+    const sleep = () => { wall.classList.remove('awake'); wall.classList.add('sleep'); };
+    // tap the ambient screen to wake (like walking up to the mount)
+    wall.addEventListener('click', () => { if (wall.classList.contains('sleep')) wake(); });
+    document.getElementById('toggle').addEventListener('click', () =>
+      wall.classList.contains('sleep') ? wake() : sleep());
+    // selecting a room swaps the right rail (demo: just highlights)
+    wall.querySelectorAll('.r').forEach(r => r.addEventListener('click', (e) => {
+      e.stopPropagation();
+      wall.querySelectorAll('.r').forEach(x => x.classList.remove('sel'));
+      r.classList.add('sel');
+    }));
+  </script>
+</body>
+</html>

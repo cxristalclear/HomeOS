@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HomeOS — iPad Mount v2</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     Calm + minimal × smart-home dashboard. ONE app, two states.
+     Awake = airy light dashboard (interactive floor plan).
+     Sleep = the same skeleton dimmed to a calm dark ambient hero.
+     Theme tokens flip on .wall; the header / footer / split persist.
+     Real data from scripts/seed.ts (Sunday afternoon).
+     ═══════════════════════════════════════════════════════════════ */
+  :root{
+    --me:#3f9bd6;  --me-soft:#e9f3fb;  --me-ink:#0c3a5c;
+    --her:#e8788c; --her-soft:#fcecef; --her-ink:#5c1626;
+    --go:#15a37a;  --go-soft:#e7f6f1;
+    --warn:#c98a2b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:#e8e7e2;color:#23211e;
+    font:16px/1.4 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:18px;}
+
+  /* ── theme tokens, flipped per state ── */
+  .wall{
+    --canvas:#f3f2ee; --canvas-2:#eceae3;
+    --surface:#ffffff; --surface-hi:#ffffff;
+    --ink:#262420; --soft:#8f8a80; --faint:#bdb8ae;
+    --line:#e9e6df; --line-2:#f0eee8;
+    --shadow:0 1px 2px rgba(40,36,30,.04),0 8px 24px -14px rgba(40,36,30,.22);
+    --bg:radial-gradient(1100px 700px at 82% -10%,#fbfaf7,var(--canvas) 60%);
+  }
+  .wall.sleep{
+    --canvas:#121316; --canvas-2:#0d0e10;
+    --surface:#1a1c20; --surface-hi:#202329;
+    --ink:#f4f2ec; --soft:#9a968d; --faint:#5e5a52;
+    --line:#262a30; --line-2:#202329;
+    --shadow:none;
+    --bg:radial-gradient(1100px 720px at 78% -14%,#1b1d22,#0c0d0f 62%);
+  }
+
+  /* device frame */
+  .wall{position:relative;width:100%;max-width:1040px;aspect-ratio:16/10;max-height:84vh;
+    border-radius:30px;overflow:hidden;background:var(--bg);color:var(--ink);
+    transition:background .7s ease,color .5s ease;}
+  .wall.sleep{cursor:pointer;}
+  .wall::after{content:"";position:absolute;inset:0;border-radius:30px;pointer-events:none;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.04);}
+
+  .grid{position:absolute;inset:0;display:grid;
+    grid-template-columns:1.62fr 1fr;grid-template-rows:auto 1fr auto;
+    grid-template-areas:"head head" "main rail" "foot rail";
+    padding:30px 36px;gap:6px 32px;}
+
+  /* ── HEADER (persistent) ── */
+  .head{grid-area:head;display:flex;align-items:center;justify-content:space-between;padding-bottom:18px;}
+  .when .t{font-size:30px;font-weight:680;letter-spacing:-.03em;font-variant-numeric:tabular-nums;}
+  .when .d{font-size:13px;color:var(--soft);font-weight:560;margin-top:1px;letter-spacing:.01em;}
+  .right{display:flex;align-items:center;gap:20px;}
+  .people{display:flex;gap:10px;}
+  .chip{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);
+    padding:7px 13px 7px 8px;border-radius:999px;box-shadow:var(--shadow);transition:background .5s,border-color .5s;}
+  .ava{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:760;}
+  .ava.me{background:var(--me);color:#fff;} .ava.her{background:var(--her);color:#fff;}
+  .chip .pl{font-size:11px;line-height:1.15;}
+  .chip .pl b{display:block;font-size:12.5px;font-weight:680;}
+  .chip .pl span{color:var(--soft);}
+  .seg{display:flex;gap:2px;background:var(--canvas-2);border-radius:11px;padding:3px;opacity:0;transform:translateY(-3px);
+    transition:opacity .45s,transform .45s;pointer-events:none;}
+  .wall.awake .seg{opacity:1;transform:none;pointer-events:auto;}
+  .seg button{border:0;background:transparent;color:var(--soft);font:inherit;font-weight:680;font-size:12px;padding:7px 13px;border-radius:8px;cursor:pointer;}
+  .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);}
+
+  /* ── MAIN (left): hero ⟷ floor plan ── */
+  .main{grid-area:main;position:relative;}
+  .layer{position:absolute;inset:0;transition:opacity .6s ease,transform .6s ease;}
+
+  /* sleep: ambient hero */
+  .l-sleep{display:flex;flex-direction:column;justify-content:center;}
+  .wall.awake .l-sleep{opacity:0;transform:scale(1.03);pointer-events:none;}
+  .kick{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:780;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--go);margin-bottom:18px;}
+  .kick::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--go);box-shadow:0 0 10px var(--go);}
+  .l-sleep .owner{display:flex;align-items:center;gap:11px;margin-bottom:14px;}
+  .l-sleep .owner .ava{width:30px;height:30px;font-size:13px;}
+  .l-sleep .owner .ol{font-size:14px;color:var(--soft);font-weight:600;}
+  .l-sleep h1{font-size:62px;line-height:.98;font-weight:720;letter-spacing:-.035em;margin:0 0 18px;}
+  .l-sleep .meta{font-size:16px;color:var(--soft);font-weight:520;}
+  .l-sleep .meta .late{color:var(--warn);font-weight:680;}
+  .wake-hint{margin-top:34px;font-size:12.5px;color:var(--faint);letter-spacing:.05em;font-weight:560;
+    animation:breathe 3.6s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{opacity:.4;}50%{opacity:.9;}}
+
+  /* awake: floor plan */
+  .l-awake{opacity:0;transform:scale(.98);pointer-events:none;}
+  .wall.awake .l-awake{opacity:1;transform:none;pointer-events:auto;}
+  .plan-cap{display:flex;align-items:baseline;gap:9px;margin:0 2px 12px;}
+  .plan-cap h2{font-size:12px;font-weight:780;letter-spacing:.13em;text-transform:uppercase;color:var(--soft);margin:0;}
+  .plan-cap .sm{font-size:12px;color:var(--faint);font-weight:560;}
+  .plan{display:grid;gap:10px;height:calc(100% - 34px);
+    grid-template-columns:1.25fr 1fr 1fr;grid-template-rows:repeat(3,1fr);
+    grid-template-areas:"kitchen kitchen bedroom" "laundry household household" "living dining studio";}
+  .r{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:18px;
+    padding:13px 15px;display:flex;flex-direction:column;cursor:pointer;overflow:hidden;box-shadow:var(--shadow);
+    transition:transform .15s,border-color .2s,box-shadow .2s;}
+  .r:hover{transform:translateY(-1px);}
+  .r.clear{background:var(--canvas);box-shadow:none;border-color:var(--line-2);}
+  .r.sel{border-color:var(--go);box-shadow:0 0 0 2px var(--go-soft),0 0 0 1px var(--go) inset,var(--shadow);}
+  .r .nm{font-size:14px;font-weight:700;letter-spacing:-.01em;}
+  .r .nx{font-size:11.5px;color:var(--soft);margin-top:3px;line-height:1.3;font-weight:500;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .r .nx .h{color:var(--her);font-weight:700;} .r .nx .m{color:var(--me);font-weight:700;}
+  .r .glyph{position:absolute;right:11px;bottom:9px;font-size:21px;opacity:.34;}
+  .r.clear .glyph{opacity:.2;}
+  .r .foot-dots{margin-top:auto;display:flex;gap:5px;padding-top:8px;}
+  .foot-dots i{width:6px;height:6px;border-radius:50%;}
+  i.me{background:var(--me);} i.her{background:var(--her);} i.any{background:#c7c2b8;}
+  .pin{position:absolute;top:11px;right:13px;min-width:21px;height:21px;padding:0 6px;border-radius:999px;
+    display:grid;place-items:center;font-size:11.5px;font-weight:780;color:#fff;background:#b3aea4;}
+  .pin.attn{background:var(--warn);}
+  .r.clear .ok{position:absolute;top:11px;right:13px;color:var(--go);font-weight:800;font-size:13px;}
+  .startflag{position:absolute;left:13px;top:12px;display:inline-flex;align-items:center;gap:5px;
+    background:var(--go);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.06em;padding:4px 9px;border-radius:999px;}
+  .kitchen{grid-area:kitchen;} .bedroom{grid-area:bedroom;} .laundry{grid-area:laundry;}
+  .household{grid-area:household;} .living{grid-area:living;} .dining{grid-area:dining;} .studio{grid-area:studio;}
+
+  /* ── RIGHT RAIL: "then today" ⟷ selected-room detail ── */
+  .rail{grid-area:rail;position:relative;}
+  .railcard{position:absolute;inset:0;background:var(--surface);border:1px solid var(--line);border-radius:22px;
+    box-shadow:var(--shadow);padding:22px;transition:opacity .55s ease,background .5s,border-color .5s;display:flex;flex-direction:column;}
+  .wall.sleep .railcard{background:transparent;border-color:transparent;box-shadow:none;}
+
+  .r-sleep h2,.r-awake .cap{font-size:11.5px;font-weight:780;letter-spacing:.14em;text-transform:uppercase;color:var(--soft);margin:0 0 14px;}
+  .wall.awake .r-sleep{opacity:0;pointer-events:none;}
+  .row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line-2);}
+  .row:last-child{border-bottom:0;}
+  .row .d{width:9px;height:9px;border-radius:50%;flex:none;}
+  .d.me{background:var(--me);} .d.her{background:var(--her);} .d.any{background:#c7c2b8;}
+  .row .tx{flex:1;font-size:15.5px;font-weight:600;}
+  .row .hint{font-size:12px;color:var(--faint);font-weight:560;}
+  .row .hint.h{color:var(--her);font-weight:700;}
+
+  .r-awake{opacity:0;pointer-events:none;transition:opacity .55s ease;}
+  .wall.awake .r-awake{opacity:1;pointer-events:auto;}
+  .rh{display:flex;align-items:center;gap:11px;margin-bottom:3px;}
+  .rh .g{font-size:26px;} .rh .rn{font-size:21px;font-weight:740;letter-spacing:-.02em;}
+  .rh .flag{margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.06em;color:#fff;background:var(--go);padding:4px 9px;border-radius:999px;}
+  .rsub{font-size:12px;color:var(--soft);margin-bottom:18px;font-weight:520;}
+  .task{display:flex;align-items:center;gap:12px;padding:15px 0;border-top:1px solid var(--line-2);}
+  .task:first-of-type{border-top:0;}
+  .task .ic{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:12px;font-weight:760;}
+  .ic.me{background:var(--me-soft);color:var(--me-ink);} .ic.her{background:var(--her-soft);color:var(--her-ink);} .ic.any{background:var(--canvas-2);color:var(--soft);}
+  .task .body{flex:1;min-width:0;}
+  .task .tt{font-weight:700;font-size:15.5px;letter-spacing:-.01em;}
+  .task .mm{font-size:11.5px;color:var(--soft);font-weight:520;margin-top:1px;}
+  .task .mm .late{color:var(--warn);font-weight:700;}
+  .done{flex:none;border:0;background:var(--go);color:#fff;font:inherit;font-weight:760;font-size:13.5px;
+    padding:11px 18px;border-radius:13px;cursor:pointer;box-shadow:0 6px 16px -8px rgba(21,163,122,.7);}
+  .done:active{transform:translateY(1px);}
+  .handoff{margin-top:auto;display:flex;align-items:center;gap:10px;background:var(--her-soft);border-radius:14px;
+    padding:12px 14px;font-size:12.5px;color:var(--her-ink);font-weight:600;}
+  .handoff b{font-weight:780;}
+
+  /* ── FOOTER (persistent, no-debt) ── */
+  .foot{grid-area:foot;display:flex;align-items:center;gap:13px;color:var(--soft);font-size:13px;padding-top:16px;font-weight:540;}
+  .dots{display:flex;gap:6px;}
+  .dots i{width:7px;height:7px;border-radius:50%;background:transparent;border:1.5px solid var(--faint);}
+  .dots i.on{background:var(--go);border-color:var(--go);}
+  .foot .msg{margin-left:auto;font-style:italic;color:var(--faint);}
+
+  .demo{display:flex;gap:9px;align-items:center;color:#8a877f;font-size:12px;}
+  .demo button{background:#fff;color:#4a463f;border:1px solid #d8d4cc;border-radius:9px;padding:8px 14px;font:inherit;font-weight:620;cursor:pointer;}
+</style>
+</head>
+<body>
+  <div class="wall sleep" id="wall">
+    <div class="grid">
+
+      <!-- HEADER -->
+      <div class="head">
+        <div class="when">
+          <div class="t">2:14<span style="font-size:16px;font-weight:560;color:var(--soft);margin-left:6px;">PM</span></div>
+          <div class="d">Sunday, June 28</div>
+        </div>
+        <div class="right">
+          <div class="seg" role="tablist">
+            <button aria-pressed="true">Everyone</button>
+            <button aria-pressed="false">Christal</button>
+            <button aria-pressed="false">Syd</button>
+          </div>
+          <div class="people">
+            <div class="chip"><span class="ava me">C</span><span class="pl"><b>Christal</b><span>3 today</span></span></div>
+            <div class="chip"><span class="ava her">S</span><span class="pl"><b>Syd</b><span>dishes next</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEFT MAIN -->
+      <div class="main">
+        <!-- sleep hero -->
+        <div class="layer l-sleep">
+          <div class="kick">Do this next</div>
+          <div class="owner"><span class="ava me">C</span><span class="ol">Christal’s turn</span></div>
+          <h1>Laundry wash</h1>
+          <div class="meta">Laundry · every 3 days · <span class="late">2 days overdue</span></div>
+          <div class="wake-hint">Tap anywhere to wake</div>
+        </div>
+
+        <!-- awake floor plan (real rooms + counts) -->
+        <div class="layer l-awake">
+          <div class="plan-cap"><h2>The house today</h2><span class="sm">· 3 rooms need attention</span></div>
+          <div class="plan">
+            <div class="r kitchen" data-room="kitchen">
+              <span class="pin attn">3</span>
+              <div class="nm">Kitchen</div>
+              <div class="nx"><span class="h">Syd</span> loads dishwasher → you unload · reset · fridge</div>
+              <div class="foot-dots"><i class="her"></i><i class="me"></i><i class="any"></i></div>
+              <span class="glyph">🍳</span>
+            </div>
+            <div class="r bedroom" data-room="bedroom">
+              <span class="pin">1</span>
+              <div class="nm">Bedroom</div>
+              <div class="nx">Change bed sheets</div>
+              <div class="foot-dots"><i class="any"></i></div>
+              <span class="glyph">🛏️</span>
+            </div>
+            <div class="r laundry sel" data-room="laundry">
+              <span class="startflag">★ START HERE</span>
+              <div class="nm" style="margin-top:16px;">Laundry</div>
+              <div class="nx"><span class="m">Wash — 2 days over</span> · fold + put away</div>
+              <div class="foot-dots"><i class="me"></i><i class="me"></i></div>
+              <span class="glyph">🧺</span>
+            </div>
+            <div class="r household" data-room="household">
+              <span class="pin">4</span>
+              <div class="nm">Whole house &amp; errands</div>
+              <div class="nx">Clutter reset · litter box · <span class="m">weekly planning</span> · groceries</div>
+              <div class="foot-dots"><i class="any"></i><i class="any"></i><i class="me"></i></div>
+              <span class="glyph">🏠</span>
+            </div>
+            <div class="r living clear" data-room="living">
+              <span class="ok">✓</span><div class="nm">Living</div><div class="nx">Vacuum · tomorrow</div><span class="glyph">🛋️</span>
+            </div>
+            <div class="r dining clear" data-room="dining">
+              <span class="ok">✓</span><div class="nm">Dining</div><div class="nx">Sweep · tomorrow</div><span class="glyph">🍽️</span>
+            </div>
+            <div class="r studio clear" data-room="studio">
+              <span class="ok">✓</span><div class="nm">Studio</div><div class="nx">Reset · Monday</div><span class="glyph">🎨</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT RAIL -->
+      <div class="rail">
+        <div class="railcard">
+          <!-- sleep: then today -->
+          <div class="r-sleep" style="position:absolute;inset:22px;">
+            <h2>Then today</h2>
+            <div class="row"><span class="d her"></span><span class="tx">Dishwasher</span><span class="hint h">Syd loads</span></div>
+            <div class="row"><span class="d any"></span><span class="tx">Kitchen reset</span><span class="hint">anyone</span></div>
+            <div class="row"><span class="d any"></span><span class="tx">Litter box</span><span class="hint">anyone</span></div>
+            <div class="row"><span class="d me"></span><span class="tx">Weekly planning</span><span class="hint">you</span></div>
+          </div>
+
+          <!-- awake: selected room detail (Laundry = Start here) -->
+          <div class="r-awake" style="display:flex;flex-direction:column;height:100%;">
+            <div class="rh"><span class="g">🧺</span><span class="rn">Laundry</span><span class="flag">★ START HERE</span></div>
+            <div class="rsub">2 tasks · both Christal’s · tap another room to switch</div>
+            <div class="task">
+              <span class="ic me">C</span>
+              <div class="body"><div class="tt">Laundry wash</div><div class="mm">every 3 days · <span class="late">2 days overdue</span></div></div>
+              <button class="done">Done</button>
+            </div>
+            <div class="task">
+              <span class="ic me">C</span>
+              <div class="body"><div class="tt">Finish — fold + put away</div><div class="mm">every 3 days · due today</div></div>
+              <button class="done">Done</button>
+            </div>
+            <div class="handoff"><span>🔁</span><span>Marking <b>wash</b> done re-anchors it — nothing’s owed for the 2 late days.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="foot">
+        <div class="dots"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <span>2 done today</span>
+        <span class="msg">Nothing’s owed for what slipped. Just the next thing.</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="demo">
+    <span>Demo — real mount wakes on tap, sleeps when idle:</span>
+    <button id="toggle">Toggle sleep / awake</button>
+  </div>
+
+  <script>
+    const wall = document.getElementById('wall');
+    const wake = () => { wall.classList.replace('sleep','awake'); };
+    const sleep = () => { wall.classList.replace('awake','sleep'); };
+    wall.addEventListener('click', () => { if (wall.classList.contains('sleep')) wake(); });
+    document.getElementById('toggle').addEventListener('click', () =>
+      wall.classList.contains('sleep') ? wake() : sleep());
+
+    // tapping a room selects it (demo highlights; real app swaps the rail detail)
+    const ROOMS = {
+      laundry:{g:'🧺',n:'Laundry',sub:'2 tasks · both Christal’s',flag:true,
+        tasks:[['me','C','Laundry wash','every 3 days · ',true],['me','C','Finish — fold + put away','every 3 days · due today',false]],
+        note:'Marking <b>wash</b> done re-anchors it — nothing’s owed for the 2 late days.'},
+      kitchen:{g:'🍳',n:'Kitchen',sub:'3 tasks · a handoff + 2 resets',flag:false,
+        tasks:[['her','S','Dishwasher — Syd loads','then you unload · the handoff',false],['any','·','Kitchen reset','daily · due today',false],['any','·','Clean fridge','weekly · Sundays',false]],
+        note:'<b>Syd</b> loads the dishwasher; it hands to you to unload. The system tells her — not you.'},
+      bedroom:{g:'🛏️',n:'Bedroom',sub:'1 task',flag:false,
+        tasks:[['any','·','Change bed sheets','weekly · Sundays',false]],note:'Anyone can take this one.'},
+      household:{g:'🏠',n:'Whole house & errands',sub:'4 tasks',flag:false,
+        tasks:[['any','·','General clutter reset','every 2 days · due today',false],['any','·','Litter box','every 2 days · due today',false],['me','C','Weekly planning','weekly · Sundays',false],['any','·','Meal prep / groceries','weekly · Sundays',false]],
+        note:'A mix — the system surfaces the worst-first across all of them.'},
+      living:{g:'🛋️',n:'Living room',sub:'all clear today',flag:false,tasks:[['any','·','Vacuum living room','every 3 days · due tomorrow',false]],note:'Nothing due today. Next up tomorrow.'},
+      dining:{g:'🍽️',n:'Dining room',sub:'all clear today',flag:false,tasks:[['any','·','Sweep dining room','every 2 days · due tomorrow',false]],note:'Nothing due today.'},
+      studio:{g:'🎨',n:'Studio',sub:'all clear today',flag:false,tasks:[['any','·','Studio reset','every 3 days · due Monday',false]],note:'Nothing due today.'},
+    };
+    const railAwake = wall.querySelector('.r-awake');
+    function renderRoom(key){
+      const r = ROOMS[key]; if(!r) return;
+      railAwake.innerHTML =
+        `<div class="rh"><span class="g">${r.g}</span><span class="rn">${r.n}</span>${r.flag?'<span class="flag">★ START HERE</span>':''}</div>`+
+        `<div class="rsub">${r.sub} · tap another room to switch</div>`+
+        r.tasks.map(t=>`<div class="task"><span class="ic ${t[0]}">${t[1]}</span><div class="body"><div class="tt">${t[2]}</div><div class="mm">${t[3]}${t[4]?'<span class="late">2 days overdue</span>':''}</div></div><button class="done">Done</button></div>`).join('')+
+        `<div class="handoff"><span>🔁</span><span>${r.note}</span></div>`;
+    }
+    wall.querySelectorAll('.r').forEach(r => r.addEventListener('click', (e) => {
+      e.stopPropagation();
+      wall.querySelectorAll('.r').forEach(x => x.classList.remove('sel'));
+      r.classList.add('sel');
+      renderRoom(r.dataset.room);
+    }));
+  </script>
+</body>
+</html>

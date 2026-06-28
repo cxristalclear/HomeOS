@@ -1,4 +1,11 @@
-import type { CompletionRow, Owner, Task, TaskStepRow } from "@/lib/domain/types";
+import type {
+  CompletionRow,
+  Floor,
+  Owner,
+  Room,
+  Task,
+  TaskStepRow,
+} from "@/lib/domain/types";
 
 /**
  * Input for creating a task. The repository assigns `id`, `created_at`, and the
@@ -13,8 +20,24 @@ export interface NewTask {
   cadence_type: Task["cadence_type"];
   every_days: number | null;
   days: number[] | null;
+  /** The Room to place this task in; omit/null to create it un-placed (an Errand). */
+  room_id?: string | null;
   /** Ordered steps for a chain; omit/empty for a simple task. */
   steps?: Array<Pick<TaskStepRow, "label" | "owner">>;
+}
+
+/** Input for creating a Floor; the repository assigns the `id`. */
+export interface NewFloor {
+  name: string;
+  level: number;
+}
+
+/** Input for creating a Room; the repository assigns the `id`. */
+export interface NewRoom {
+  name: string;
+  icon: string;
+  floor_id: string;
+  slot: number;
 }
 
 /**
@@ -27,6 +50,13 @@ export interface NewTask {
 export interface TaskRepository {
   /** All tasks with steps joined in. */
   listTasks(): Promise<Task[]>;
+
+  /**
+   * The configured home layout — Floors (ordered by level) and their Rooms. The
+   * wall maps tasks onto this; a task whose `room_id` is null is an Errand. Read
+   * alongside `listTasks` and grouped on the client (Attention is never cached).
+   */
+  listLayout(): Promise<{ floors: Floor[]; rooms: Room[] }>;
 
   createTask(input: NewTask): Promise<Task>;
 
@@ -79,4 +109,22 @@ export interface TaskRepository {
    * learn/teach phase — and lets the engine's behavior be verified.
    */
   listCompletions(): Promise<CompletionRow[]>;
+
+  // --- Layout management (the settings screen) ---
+
+  createFloor(input: NewFloor): Promise<Floor>;
+  updateFloor(id: string, patch: Partial<Omit<Floor, "id">>): Promise<Floor>;
+  /**
+   * Delete a Floor. Its Rooms go too, and any task in those Rooms falls back to
+   * Errand (`room_id` → null) — never orphaned. See ADR 004.
+   */
+  deleteFloor(id: string): Promise<void>;
+
+  createRoom(input: NewRoom): Promise<Room>;
+  updateRoom(id: string, patch: Partial<Omit<Room, "id">>): Promise<Room>;
+  /**
+   * Delete a Room. Any task placed in it falls back to Errand (`room_id` → null) —
+   * never orphaned. See ADR 004.
+   */
+  deleteRoom(id: string): Promise<void>;
 }

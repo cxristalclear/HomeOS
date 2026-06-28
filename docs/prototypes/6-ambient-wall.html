@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HomeOS — Ambient Wall prototype</title>
+<style>
+  :root{
+    --bg:#16130f; --panel:#211c16; --ink:#f5f1ea; --soft:#9a9087; --faint:#5f574d;
+    --me:#38bdf8; --her:#fb7185; --any:#a8a29e; --go:#34d399; --warn:#fbbf24;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh;display:flex;justify-content:center;align-items:center;padding:18px;}
+
+  /* landscape billboard — sized like a wall iPad */
+  .wall{width:100%;max-width:1024px;aspect-ratio:16/10;max-height:92vh;
+    background:radial-gradient(1200px 600px at 80% -10%,#2a231b,#16130f 60%);
+    border-radius:26px;overflow:hidden;display:grid;
+    grid-template-columns:1.55fr 1fr;grid-template-rows:auto 1fr auto;
+    grid-template-areas:"head head" "hero side" "foot side";
+    padding:34px 38px;gap:0 34px;}
+
+  /* header line */
+  .head{grid-area:head;display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:1px solid #2e2820;padding-bottom:16px;}
+  .clock{font-size:30px;font-weight:700;letter-spacing:-.02em;}
+  .clock span{color:var(--soft);font-weight:500;font-size:18px;margin-left:10px;}
+  .who-strip{display:flex;gap:22px;}
+  .person{display:flex;align-items:center;gap:9px;}
+  .person .ava{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;color:#16130f;}
+  .ava.me{background:var(--me);}.ava.her{background:var(--her);}
+  .person .pl{font-size:12px;line-height:1.15;}
+  .person .pl b{display:block;font-size:14px;color:var(--ink);font-weight:700;}
+  .person .pl span{color:var(--soft);}
+
+  /* HERO — the one thing, readable across the room */
+  .hero{grid-area:hero;display:flex;flex-direction:column;justify-content:center;}
+  .kick{font-size:13px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--go);margin-bottom:14px;}
+  .hero .owner{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .hero .owner .ava{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;color:#16130f;background:var(--me);}
+  .hero .owner .ol{font-size:15px;color:var(--soft);font-weight:600;}
+  .hero h1{font-size:62px;line-height:1.02;font-weight:800;letter-spacing:-.03em;margin:0 0 16px;}
+  .hero .meta{font-size:17px;color:var(--soft);}
+  .hero .meta .late{color:var(--warn);font-weight:700;}
+  .hero .cta{margin-top:30px;display:inline-flex;align-items:center;gap:12px;align-self:flex-start;
+    background:var(--go);color:#0b2e22;font-weight:800;font-size:19px;padding:16px 30px;border-radius:16px;
+    border:0;cursor:pointer;box-shadow:0 12px 30px -10px rgba(52,211,153,.5);}
+
+  /* SIDE — the rest of today, quiet */
+  .side{grid-area:side;border-left:1px solid #2e2820;padding-left:30px;display:flex;flex-direction:column;}
+  .side h2{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--soft);margin:6px 0 16px;}
+  .row{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid #241f19;}
+  .row .d{width:10px;height:10px;border-radius:50%;flex:none;}
+  .d.me{background:var(--me);}.d.her{background:var(--her);}.d.any{background:var(--any);}
+  .row .tx{flex:1;font-size:18px;font-weight:600;}
+  .row .hint{font-size:13px;color:var(--faint);}
+  .row .hint.h{color:var(--her);font-weight:700;}
+  .side .later{margin-top:auto;padding-top:18px;font-size:13.5px;color:var(--faint);}
+  .side .later b{color:var(--soft);font-weight:700;}
+
+  /* FOOT — calm reassurance, the thesis stated plainly */
+  .foot{grid-area:foot;display:flex;align-items:center;gap:14px;color:var(--faint);font-size:14px;padding-top:18px;}
+  .foot .dotline{display:flex;gap:6px;}
+  .foot .dotline i{width:8px;height:8px;border-radius:50%;background:#3a332b;}
+  .foot .dotline i.on{background:var(--go);}
+  .foot .msg{margin-left:auto;font-style:italic;}
+</style>
+</head>
+<body>
+  <div class="wall">
+    <div class="head">
+      <div class="clock">2:14<span>Sunday afternoon</span></div>
+      <div class="who-strip">
+        <div class="person"><span class="ava me">C</span><span class="pl"><b>Christal</b><span>3 today</span></span></div>
+        <div class="person"><span class="ava her">S</span><span class="pl"><b>Syd</b><span>up next: dishes</span></span></div>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="kick">▶ Do this next</div>
+      <div class="owner"><span class="ava">C</span><span class="ol">Christal’s turn</span></div>
+      <h1>Laundry<br>wash</h1>
+      <div class="meta">Laundry · every 3 days · <span class="late">2 days over</span></div>
+      <button class="cta">Tap when done →</button>
+    </div>
+
+    <div class="side">
+      <h2>Then today</h2>
+      <div class="row"><span class="d her"></span><span class="tx">Dishwasher</span><span class="hint h">Syd loads</span></div>
+      <div class="row"><span class="d any"></span><span class="tx">Litter box</span><span class="hint">anyone</span></div>
+      <div class="row"><span class="d me"></span><span class="tx">Laundry — fold + away</span><span class="hint">you</span></div>
+      <div class="later"><b>Tomorrow</b> · vacuum living room, sweep dining &nbsp;·&nbsp; <b>Sat</b> · the weekend deep-clean</div>
+    </div>
+
+    <div class="foot">
+      <div class="dotline"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+      <span>2 done today</span>
+      <span class="msg">Nothing’s owed for what slipped. Just the next thing.</span>
+    </div>
+  </div>
+</body>
+</html>

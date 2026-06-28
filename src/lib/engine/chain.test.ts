@@ -33,6 +33,7 @@ function chainTask(opts: {
     active_step: opts.activeStep ?? null,
     active_step_since: opts.activeStepSince ?? null,
     created_at: 0,
+    room_id: null,
     steps,
   };
 }

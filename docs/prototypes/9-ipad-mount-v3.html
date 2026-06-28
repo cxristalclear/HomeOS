@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HomeOS — iPad Mount v3</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     Sharper · cooler · sleeker. Cool near-black, hairline borders,
+     monoline icons, mono numerics, restrained accent. One app, two
+     states (sleep ambient / awake floor plan). Real seed data.
+     ═══════════════════════════════════════════════════════════════ */
+  :root{
+    --canvas:#0a0c10; --canvas-hi:#0e1116;
+    --surface:#13161c; --surface-2:#181c23; --surface-3:#1d222a;
+    --ink:#eceef2; --soft:#878e9c; --faint:#525a68; --ghost:#363d49;
+    --line:rgba(255,255,255,.075); --line-2:rgba(255,255,255,.045);
+    --me:#5aa2ff;  --me-dim:rgba(90,162,255,.13);
+    --her:#f472b6; --her-dim:rgba(244,114,182,.13);
+    --acc:#2dd4bf; --acc-dim:rgba(45,212,191,.14);
+    --warn:#e0a75e;
+    --btn:#f3f5f9; --btn-ink:#0a0c10;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:#050609;color:var(--ink);
+    font:16px/1.4 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:18px;
+    -webkit-font-smoothing:antialiased;}
+
+  .wall{position:relative;width:100%;max-width:1060px;aspect-ratio:16/10;max-height:84vh;
+    border-radius:22px;overflow:hidden;
+    background:
+      radial-gradient(900px 520px at 88% -16%,rgba(45,212,191,.07),transparent 55%),
+      radial-gradient(700px 460px at 8% 110%,rgba(90,162,255,.06),transparent 50%),
+      linear-gradient(180deg,var(--canvas-hi),var(--canvas));
+    box-shadow:0 0 0 1px rgba(255,255,255,.06),0 40px 80px -40px #000;
+    transition:filter .7s ease;}
+  .wall.sleep{filter:brightness(.7) saturate(.85);cursor:pointer;}
+
+  .grid{position:absolute;inset:0;display:grid;
+    grid-template-columns:1.62fr 1fr;grid-template-rows:auto 1fr auto;
+    grid-template-areas:"head head" "main rail" "foot rail";
+    padding:28px 34px;gap:4px 30px;}
+
+  /* icons */
+  svg.i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+
+  /* ── HEADER ── */
+  .head{grid-area:head;display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:18px;border-bottom:1px solid var(--line);}
+  .when{display:flex;align-items:baseline;gap:12px;}
+  .when .t{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;}
+  .when .t .ap{font-size:13px;color:var(--soft);margin-left:5px;}
+  .when .d{font-size:12px;color:var(--soft);font-weight:500;letter-spacing:.02em;text-transform:uppercase;}
+  .right{display:flex;align-items:center;gap:16px;}
+  .seg{display:flex;gap:1px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:2px;
+    opacity:0;transform:translateY(-3px);transition:opacity .45s,transform .45s;pointer-events:none;}
+  .wall.awake .seg{opacity:1;transform:none;pointer-events:auto;}
+  .seg button{border:0;background:transparent;color:var(--soft);font:inherit;font-weight:600;font-size:12px;
+    padding:7px 13px;border-radius:7px;cursor:pointer;letter-spacing:.01em;}
+  .seg button[aria-pressed="true"]{background:var(--surface-3);color:var(--ink);}
+  .people{display:flex;gap:8px;}
+  .chip{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);
+    padding:6px 12px 6px 6px;border-radius:999px;}
+  .ava{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#06080c;}
+  .ava.me{background:var(--me);} .ava.her{background:var(--her);}
+  .chip .pl{font-size:10.5px;line-height:1.15;}
+  .chip .pl b{display:block;font-size:12px;font-weight:650;letter-spacing:-.01em;}
+  .chip .pl span{color:var(--soft);}
+
+  .cap{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);}
+
+  /* ── MAIN (left) ── */
+  .main{grid-area:main;position:relative;}
+  .layer{position:absolute;inset:0;transition:opacity .55s ease,transform .55s ease;}
+
+  /* sleep hero */
+  .l-sleep{display:flex;flex-direction:column;justify-content:center;}
+  .wall.awake .l-sleep{opacity:0;transform:scale(1.03);pointer-events:none;}
+  .l-sleep .kick{display:inline-flex;align-items:center;gap:9px;color:var(--acc);margin-bottom:20px;}
+  .l-sleep .kick::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--acc);box-shadow:0 0 12px var(--acc);}
+  .l-sleep .owner{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .l-sleep .owner .ava{width:28px;height:28px;}
+  .l-sleep .owner .ol{font-size:13px;color:var(--soft);font-weight:600;letter-spacing:.01em;}
+  .l-sleep h1{font-size:66px;line-height:.95;font-weight:680;letter-spacing:-.04em;margin:0 0 20px;}
+  .l-sleep .meta{font-family:var(--mono);font-size:14px;color:var(--soft);letter-spacing:-.01em;}
+  .l-sleep .meta .late{color:var(--warn);}
+  .wake-hint{margin-top:38px;font-size:11px;color:var(--ghost);letter-spacing:.16em;text-transform:uppercase;font-weight:600;
+    animation:breathe 3.6s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{opacity:.35;}50%{opacity:.85;}}
+
+  /* awake floor plan */
+  .l-awake{opacity:0;transform:scale(.985);pointer-events:none;}
+  .wall.awake .l-awake{opacity:1;transform:none;pointer-events:auto;}
+  .plan-cap{display:flex;align-items:center;gap:10px;margin:2px 0 13px;}
+  .plan-cap .sm{font-size:11px;color:var(--ghost);font-weight:600;letter-spacing:.02em;}
+  .plan{display:grid;gap:8px;height:calc(100% - 30px);
+    grid-template-columns:1.3fr 1fr 1fr;grid-template-rows:repeat(3,1fr);
+    grid-template-areas:"kitchen kitchen bedroom" "laundry household household" "living dining studio";}
+  .r{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:13px;
+    padding:13px 14px;display:flex;flex-direction:column;cursor:pointer;overflow:hidden;
+    transition:background .18s,border-color .18s,transform .14s;}
+  .r:hover{background:var(--surface-2);transform:translateY(-1px);}
+  .r.clear{background:transparent;border-color:var(--line-2);}
+  .r.clear:hover{background:var(--surface);}
+  .r.sel{border-color:var(--acc);background:var(--surface-2);box-shadow:0 0 0 1px var(--acc),0 0 40px -16px var(--acc);}
+  .r .ricon{color:var(--soft);font-size:19px;margin-bottom:auto;}
+  .r.clear .ricon{color:var(--ghost);}
+  .r .nm{font-size:13.5px;font-weight:650;letter-spacing:-.01em;margin-top:10px;}
+  .r .nx{font-size:11px;color:var(--soft);margin-top:3px;line-height:1.32;font-weight:480;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .r .nx .h{color:var(--her);font-weight:650;} .r .nx .m{color:var(--me);font-weight:650;}
+  .pin{position:absolute;top:12px;right:13px;font-family:var(--mono);min-width:20px;height:20px;padding:0 6px;
+    border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:600;
+    color:var(--ink);background:var(--surface-3);border:1px solid var(--line);}
+  .pin.attn{color:var(--warn);border-color:rgba(224,167,94,.4);background:rgba(224,167,94,.1);}
+  .r.clear .ok{position:absolute;top:12px;right:13px;color:var(--ghost);}
+  .r.clear .ok svg{width:15px;height:15px;}
+  .startflag{position:absolute;left:13px;top:12px;display:inline-flex;align-items:center;gap:6px;
+    font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;color:var(--acc);
+    background:var(--acc-dim);border:1px solid rgba(45,212,191,.3);padding:4px 8px;border-radius:6px;}
+  .startflag::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px var(--acc);}
+  .kitchen{grid-area:kitchen;} .bedroom{grid-area:bedroom;} .laundry{grid-area:laundry;}
+  .household{grid-area:household;} .living{grid-area:living;} .dining{grid-area:dining;} .studio{grid-area:studio;}
+
+  /* ── RIGHT RAIL ── */
+  .rail{grid-area:rail;position:relative;}
+  .railcard{position:absolute;inset:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    padding:20px;display:flex;flex-direction:column;transition:background .5s,border-color .5s,opacity .4s;}
+  .wall.sleep .railcard{background:transparent;border-color:transparent;}
+
+  .r-sleep{position:absolute;inset:20px;transition:opacity .5s;}
+  .wall.awake .r-sleep{opacity:0;pointer-events:none;}
+  .r-sleep .cap{display:block;margin-bottom:14px;}
+  .row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line-2);}
+  .row:last-child{border-bottom:0;}
+  .row .d{width:7px;height:7px;border-radius:50%;flex:none;}
+  .d.me{background:var(--me);} .d.her{background:var(--her);} .d.any{background:var(--ghost);}
+  .row .tx{flex:1;font-size:15px;font-weight:550;letter-spacing:-.01em;}
+  .row .hint{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.02em;text-transform:uppercase;}
+  .row .hint.h{color:var(--her);}
+
+  .r-awake{opacity:0;pointer-events:none;transition:opacity .5s ease;display:flex;flex-direction:column;height:100%;}
+  .wall.awake .r-awake{opacity:1;pointer-events:auto;}
+  .rh{display:flex;align-items:center;gap:11px;margin-bottom:4px;}
+  .rh .g{font-size:22px;color:var(--soft);} .rh .rn{font-size:20px;font-weight:680;letter-spacing:-.025em;}
+  .rh .flag{margin-left:auto;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.12em;color:var(--acc);
+    background:var(--acc-dim);border:1px solid rgba(45,212,191,.3);padding:4px 8px;border-radius:6px;}
+  .rsub{font-size:11.5px;color:var(--faint);margin-bottom:16px;font-weight:500;}
+  .task{display:flex;align-items:center;gap:12px;padding:14px 0;border-top:1px solid var(--line-2);}
+  .task:first-of-type{border-top:0;}
+  .task .ic{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;}
+  .ic.me{background:var(--me-dim);color:var(--me);} .ic.her{background:var(--her-dim);color:var(--her);}
+  .ic.any{background:var(--surface-3);color:var(--soft);}
+  .task .body{flex:1;min-width:0;}
+  .task .tt{font-weight:620;font-size:15px;letter-spacing:-.01em;}
+  .task .mm{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:2px;letter-spacing:.01em;}
+  .task .mm .late{color:var(--warn);}
+  .done{flex:none;border:0;background:var(--btn);color:var(--btn-ink);font:inherit;font-weight:680;font-size:13px;
+    padding:10px 17px;border-radius:9px;cursor:pointer;letter-spacing:-.01em;}
+  .done:active{transform:translateY(1px);}
+  .note{margin-top:auto;display:flex;gap:10px;align-items:flex-start;border-top:1px solid var(--line-2);padding-top:14px;
+    font-size:11.5px;color:var(--soft);line-height:1.45;font-weight:480;}
+  .note b{color:var(--ink);font-weight:620;}
+  .note .nicon{color:var(--acc);flex:none;font-size:14px;margin-top:1px;}
+
+  /* ── FOOTER ── */
+  .foot{grid-area:foot;display:flex;align-items:center;gap:12px;color:var(--faint);font-size:12px;
+    padding-top:15px;font-weight:500;border-top:1px solid var(--line);}
+  .dots{display:flex;gap:5px;}
+  .dots i{width:6px;height:6px;border-radius:50%;background:transparent;border:1px solid var(--ghost);}
+  .dots i.on{background:var(--acc);border-color:var(--acc);box-shadow:0 0 8px -1px var(--acc);}
+  .foot .ct{font-family:var(--mono);letter-spacing:.02em;}
+  .foot .msg{margin-left:auto;color:var(--ghost);letter-spacing:.01em;}
+
+  .demo{display:flex;gap:10px;align-items:center;color:#5a606c;font-size:12px;}
+  .demo button{background:#14171d;color:#c4c9d2;border:1px solid #262b33;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer;}
+</style>
+</head>
+<body>
+  <!-- monoline icon sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="ic-kitchen" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="9" r="2"/><circle cx="15" cy="9" r="2"/><path d="M5 14h14"/></symbol>
+    <symbol id="ic-laundry" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M8 6h.01M11 6h.01"/></symbol>
+    <symbol id="ic-bed" viewBox="0 0 24 24"><path d="M3 18v-6h18v6M3 12V8a2 2 0 0 1 2-2h6v6M3 18v2M21 18v2"/></symbol>
+    <symbol id="ic-house" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6M6 10v9h12v-9"/></symbol>
+    <symbol id="ic-sofa" viewBox="0 0 24 24"><path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3M3 11a2 2 0 0 1 2 2v3h14v-3a2 2 0 0 1 2-2M6 19v1M18 19v1"/></symbol>
+    <symbol id="ic-dining" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="ic-studio" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.2 0 2-.8 2-2 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4 9 9 0 0 0-9-8.4Z"/><circle cx="8" cy="11" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="16" cy="11" r="1"/></symbol>
+    <symbol id="ic-loop" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 4v4h-4M21 12a9 9 0 0 1-15 6.7L3 16M3 20v-4h4"/></symbol>
+  </svg>
+
+  <div class="wall sleep" id="wall">
+    <div class="grid">
+
+      <!-- HEADER -->
+      <div class="head">
+        <div class="when">
+          <span class="t">2:14<span class="ap">PM</span></span>
+          <span class="d">Sun · Jun 28</span>
+        </div>
+        <div class="right">
+          <div class="seg" role="tablist">
+            <button aria-pressed="true">Everyone</button>
+            <button aria-pressed="false">Christal</button>
+            <button aria-pressed="false">Syd</button>
+          </div>
+          <div class="people">
+            <div class="chip"><span class="ava me">C</span><span class="pl"><b>Christal</b><span>3 today</span></span></div>
+            <div class="chip"><span class="ava her">S</span><span class="pl"><b>Syd</b><span>dishes next</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEFT MAIN -->
+      <div class="main">
+        <div class="layer l-sleep">
+          <div class="kick cap">Do this next</div>
+          <div class="owner"><span class="ava me">C</span><span class="ol">Christal’s turn</span></div>
+          <h1>Laundry wash</h1>
+          <div class="meta">Laundry · every 3 days · <span class="late">2 days overdue</span></div>
+          <div class="wake-hint">Tap to wake</div>
+        </div>
+
+        <div class="layer l-awake">
+          <div class="plan-cap"><span class="cap">The house today</span><span class="sm">3 rooms need attention</span></div>
+          <div class="plan">
+            <div class="r kitchen" data-room="kitchen">
+              <span class="pin attn">3</span>
+              <svg class="i ricon"><use href="#ic-kitchen"/></svg>
+              <div class="nm">Kitchen</div>
+              <div class="nx"><span class="h">Syd</span> loads dishwasher → you unload · reset · fridge</div>
+            </div>
+            <div class="r bedroom" data-room="bedroom">
+              <span class="pin">1</span>
+              <svg class="i ricon"><use href="#ic-bed"/></svg>
+              <div class="nm">Bedroom</div>
+              <div class="nx">Change bed sheets</div>
+            </div>
+            <div class="r laundry sel" data-room="laundry">
+              <span class="startflag">START HERE</span>
+              <svg class="i ricon" style="margin-top:14px;"><use href="#ic-laundry"/></svg>
+              <div class="nm">Laundry</div>
+              <div class="nx"><span class="m">Wash — 2 days over</span> · fold + put away</div>
+            </div>
+            <div class="r household" data-room="household">
+              <span class="pin">4</span>
+              <svg class="i ricon"><use href="#ic-house"/></svg>
+              <div class="nm">Whole house &amp; errands</div>
+              <div class="nx">Clutter reset · litter box · <span class="m">weekly planning</span> · groceries</div>
+            </div>
+            <div class="r living clear" data-room="living">
+              <span class="ok"><svg class="i"><use href="#ic-loop"/></svg></span>
+              <svg class="i ricon"><use href="#ic-sofa"/></svg>
+              <div class="nm">Living</div><div class="nx">Vacuum · tomorrow</div>
+            </div>
+            <div class="r dining clear" data-room="dining">
+              <span class="ok"><svg class="i"><use href="#ic-loop"/></svg></span>
+              <svg class="i ricon"><use href="#ic-dining"/></svg>
+              <div class="nm">Dining</div><div class="nx">Sweep · tomorrow</div>
+            </div>
+            <div class="r studio clear" data-room="studio">
+              <span class="ok"><svg class="i"><use href="#ic-loop"/></svg></span>
+              <svg class="i ricon"><use href="#ic-studio"/></svg>
+              <div class="nm">Studio</div><div class="nx">Reset · Monday</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT RAIL -->
+      <div class="rail">
+        <div class="railcard">
+          <div class="r-sleep">
+            <span class="cap">Then today</span>
+            <div class="row"><span class="d her"></span><span class="tx">Dishwasher</span><span class="hint h">Syd loads</span></div>
+            <div class="row"><span class="d any"></span><span class="tx">Kitchen reset</span><span class="hint">anyone</span></div>
+            <div class="row"><span class="d any"></span><span class="tx">Litter box</span><span class="hint">anyone</span></div>
+            <div class="row"><span class="d me"></span><span class="tx">Weekly planning</span><span class="hint">you</span></div>
+          </div>
+
+          <div class="r-awake">
+            <div class="rh"><svg class="i g"><use href="#ic-laundry"/></svg><span class="rn">Laundry</span><span class="flag">START HERE</span></div>
+            <div class="rsub">2 tasks · both Christal’s · tap a room to switch</div>
+            <div class="task">
+              <span class="ic me">C</span>
+              <div class="body"><div class="tt">Laundry wash</div><div class="mm">every 3 days · <span class="late">2 days overdue</span></div></div>
+              <button class="done">Done</button>
+            </div>
+            <div class="task">
+              <span class="ic me">C</span>
+              <div class="body"><div class="tt">Finish — fold + put away</div><div class="mm">every 3 days · due today</div></div>
+              <button class="done">Done</button>
+            </div>
+            <div class="note"><svg class="i nicon"><use href="#ic-loop"/></svg><span>Marking <b>wash</b> done re-anchors it to today — nothing’s owed for the 2 late days.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="foot">
+        <div class="dots"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+        <span class="ct">2 / 5 done today</span>
+        <span class="msg">Nothing’s owed for what slipped. Just the next thing.</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="demo">
+    <span>Demo — real mount wakes on tap, sleeps when idle:</span>
+    <button id="toggle">Toggle sleep / awake</button>
+  </div>
+
+  <script>
+    const wall = document.getElementById('wall');
+    wall.addEventListener('click', () => { if (wall.classList.contains('sleep')) wall.classList.replace('sleep','awake'); });
+    document.getElementById('toggle').addEventListener('click', () =>
+      wall.classList.contains('sleep') ? wall.classList.replace('sleep','awake') : wall.classList.replace('awake','sleep'));
+
+    const ROOMS = {
+      laundry:{ic:'laundry',n:'Laundry',sub:'2 tasks · both Christal’s',flag:true,
+        tasks:[['me','C','Laundry wash','every 3 days · ',1],['me','C','Finish — fold + put away','every 3 days · due today',0]],
+        note:'Marking <b>wash</b> done re-anchors it to today — nothing’s owed for the 2 late days.'},
+      kitchen:{ic:'kitchen',n:'Kitchen',sub:'3 tasks · a handoff + 2 resets',flag:false,
+        tasks:[['her','S','Dishwasher — Syd loads','then you unload — the handoff',0],['any','·','Kitchen reset','daily · due today',0],['any','·','Clean fridge','weekly · Sundays',0]],
+        note:'<b>Syd</b> loads the dishwasher; it hands to you to unload. The system tells <b>her</b> — not you.'},
+      bedroom:{ic:'bed',n:'Bedroom',sub:'1 task',flag:false,
+        tasks:[['any','·','Change bed sheets','weekly · Sundays',0]],note:'Anyone can take this one.'},
+      household:{ic:'house',n:'Whole house & errands',sub:'4 tasks',flag:false,
+        tasks:[['any','·','General clutter reset','every 2 days · due today',0],['any','·','Litter box','every 2 days · due today',0],['me','C','Weekly planning','weekly · Sundays',0],['any','·','Meal prep / groceries','weekly · Sundays',0]],
+        note:'A mix of household + errands — the system still surfaces the worst-first.'},
+      living:{ic:'sofa',n:'Living room',sub:'all clear today',flag:false,tasks:[['any','·','Vacuum living room','every 3 days · due tomorrow',0]],note:'Nothing due today. Next up tomorrow.'},
+      dining:{ic:'dining',n:'Dining room',sub:'all clear today',flag:false,tasks:[['any','·','Sweep dining room','every 2 days · due tomorrow',0]],note:'Nothing due today.'},
+      studio:{ic:'studio',n:'Studio',sub:'all clear today',flag:false,tasks:[['any','·','Studio reset','every 3 days · due Monday',0]],note:'Nothing due today.'},
+    };
+    const railAwake = wall.querySelector('.r-awake');
+    function renderRoom(key){
+      const r = ROOMS[key]; if(!r) return;
+      railAwake.innerHTML =
+        `<div class="rh"><svg class="i g"><use href="#ic-${r.ic}"/></svg><span class="rn">${r.n}</span>${r.flag?'<span class="flag">START HERE</span>':''}</div>`+
+        `<div class="rsub">${r.sub} · tap a room to switch</div>`+
+        r.tasks.map(t=>`<div class="task"><span class="ic ${t[0]}">${t[1]}</span><div class="body"><div class="tt">${t[2]}</div><div class="mm">${t[3]}${t[4]?'<span class="late">2 days overdue</span>':''}</div></div><button class="done">Done</button></div>`).join('')+
+        `<div class="note"><svg class="i nicon"><use href="#ic-loop"/></svg><span>${r.note}</span></div>`;
+    }
+    wall.querySelectorAll('.r').forEach(r => r.addEventListener('click', (e) => {
+      e.stopPropagation();
+      wall.querySelectorAll('.r').forEach(x => x.classList.remove('sel'));
+      r.classList.add('sel');
+      renderRoom(r.dataset.room);
+    }));
+  </script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HomeOS — Focus prototype</title>
+<style>
+  :root {
+    --bg: #faf9f7;
+    --ink: #292524;
+    --soft: #a8a29e;
+    --line: #ececea;
+    --me: #0ea5e9;      /* Christal */
+    --me-bg: #f0f9ff;
+    --her: #fb7185;     /* Syd */
+    --her-bg: #fff1f2;
+    --any: #d6d3d1;
+    --any-bg: #ffffff;
+    --go: #059669;
+    --go-bg: #ecfdf5;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .phone {
+    width: 100%; max-width: 430px; min-height: 100vh;
+    display: flex; flex-direction: column;
+    padding: max(env(safe-area-inset-top), 18px) 20px 24px;
+  }
+
+  /* ---- top bar ---- */
+  .top { display: flex; align-items: center; justify-content: space-between; }
+  .seg { display: flex; gap: 2px; background: #f0efed; border-radius: 12px; padding: 3px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--soft);
+    font: inherit; font-weight: 600; font-size: 13px;
+    padding: 6px 13px; border-radius: 9px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .manage { color: var(--soft); text-decoration: none; font-size: 13px; font-weight: 600; }
+
+  /* ---- focus card ---- */
+  .stage { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 8px 0; }
+  .kicker { font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--soft); display: flex; align-items: center; gap: 8px; }
+  .kicker .pos { color: #cbc8c4; font-weight: 600; letter-spacing: .02em; }
+
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 28px;
+    padding: 26px 24px 22px; box-shadow: 0 10px 30px -18px rgba(41,37,36,.35);
+    position: relative; overflow: hidden;
+  }
+  .card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background: var(--accent, var(--any)); }
+  .card.me    { --accent: var(--me); }
+  .card.her   { --accent: var(--her); }
+  .card.any   { --accent: var(--any); }
+
+  .who { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .ava { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; }
+  .ava.me { background: var(--me); } .ava.her { background: var(--her); } .ava.any { background: #b8b3ae; }
+  .who .name { font-size: 13px; font-weight: 600; color: var(--soft); }
+
+  .title { font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; margin: 0 0 10px; }
+  .meta { color: var(--soft); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .meta .dot { width: 3px; height: 3px; border-radius: 50%; background: #d6d3d1; }
+  .late { color: #d97706; font-weight: 600; }
+
+  .chain { margin-top: 18px; display: flex; align-items: center; gap: 0; font-size: 12.5px; }
+  .chain .step { padding: 6px 11px; border-radius: 999px; background: #f5f4f2; color: var(--soft); font-weight: 600; }
+  .chain .step.on { background: var(--her-bg); color: var(--her); }
+  .chain .arr { color: #cbc8c4; padding: 0 6px; }
+
+  .actions { margin-top: 22px; display: flex; gap: 10px; }
+  .done {
+    flex: 1; border: 0; background: var(--go); color: #fff; font: inherit; font-weight: 700; font-size: 17px;
+    padding: 17px; border-radius: 18px; cursor: pointer; box-shadow: 0 8px 20px -8px rgba(5,150,105,.6);
+  }
+  .done:active { transform: translateY(1px); }
+  .skip { border: 1px solid var(--line); background: #fff; color: var(--soft); font: inherit; font-weight: 600; padding: 17px 20px; border-radius: 18px; cursor: pointer; }
+
+  .handoff-note { margin-top: 14px; text-align: center; font-size: 13px; color: var(--soft); }
+  .handoff-note b { color: var(--her); }
+
+  /* ---- the peek of what's behind ---- */
+  .peek { margin-top: 22px; }
+  .peek .row { display: flex; align-items: center; gap: 11px; padding: 11px 4px; }
+  .peek .row + .row { border-top: 1px solid var(--line); }
+  .peek .pdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .peek .pdot.me { background: var(--me); } .peek .pdot.her { background: var(--her); } .peek .pdot.any { background: var(--any); }
+  .peek .ptitle { flex: 1; font-size: 14.5px; color: #57534e; }
+  .peek .ptime { font-size: 12px; color: #cbc8c4; }
+  .peek h2 { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); margin: 0 0 4px; padding: 0 4px; }
+
+  .reassure { margin-top: 26px; text-align: center; color: var(--soft); font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="top">
+      <div class="seg" role="tablist" aria-label="Whose tasks">
+        <button aria-pressed="false">All</button>
+        <button aria-pressed="true">Christal</button>
+        <button aria-pressed="false">Syd</button>
+      </div>
+      <a class="manage" href="#">Manage</a>
+    </div>
+
+    <div class="stage">
+      <div class="kicker">
+        Do this next <span class="pos">· 1 of 5 today</span>
+      </div>
+
+      <div class="card me">
+        <div class="who">
+          <span class="ava me">C</span>
+          <span class="name">Christal’s turn</span>
+        </div>
+        <h1 class="title">Laundry wash</h1>
+        <div class="meta">
+          <span>Laundry</span><span class="dot"></span>
+          <span>every 3 days</span><span class="dot"></span>
+          <span class="late">2 days over</span>
+        </div>
+
+        <div class="actions">
+          <button class="done">Done</button>
+          <button class="skip">Not now</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="peek">
+      <h2>Then today</h2>
+      <div class="row">
+        <span class="pdot her"></span>
+        <span class="ptitle">Dishwasher — Syd loads, you unload</span>
+        <span class="ptime">handoff</span>
+      </div>
+      <div class="row">
+        <span class="pdot any"></span>
+        <span class="ptitle">Kitchen reset</span>
+        <span class="ptime">today</span>
+      </div>
+      <div class="row">
+        <span class="pdot any"></span>
+        <span class="ptitle">Litter box</span>
+        <span class="ptime">today</span>
+      </div>
+      <div class="row">
+        <span class="pdot me"></span>
+        <span class="ptitle">Laundry finish — fold + away</span>
+        <span class="ptime">today</span>
+      </div>
+    </div>
+
+    <div class="reassure">Nothing’s owed for what slipped. One thing at a time.</div>
+  </div>
+</body>
+</html>

@@ -38,6 +38,7 @@ function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
     active_step: null,
     active_step_since: null,
     created_at: Date.now(),
+    room_id: null,
     ...overrides,
   };
 }

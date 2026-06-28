@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HomeOS — Rooms prototype</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --ink: #292524;
+    --soft: #a8a29e;
+    --line: #ecebe8;
+    --me: #0ea5e9; --me-bg: #f0f9ff;
+    --her: #fb7185; --her-bg: #fff1f2;
+    --any: #c9c5c0; --any-bg: #ffffff;
+    --go: #059669; --go-bg: #ecfdf5;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .phone { width: 100%; max-width: 460px; padding: max(env(safe-area-inset-top), 20px) 18px 40px; }
+
+  .head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  h1 { font-size: 25px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 2px; }
+  .sub { color: var(--soft); font-size: 13px; }
+  .manage { color: var(--soft); text-decoration: none; font-size: 13px; font-weight: 600; margin-top: 5px; }
+
+  .seg { display: flex; gap: 3px; background: #efedea; border-radius: 13px; padding: 4px; margin-bottom: 22px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--soft); font: inherit; font-weight: 600; font-size: 14px; padding: 9px; border-radius: 10px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+
+  /* START HERE — the system's one pick, framed as a room */
+  .start { margin-bottom: 26px; }
+  .start .lbl { font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--soft); margin: 0 2px 9px; }
+  .startcard {
+    background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 18px;
+    box-shadow: 0 10px 28px -18px rgba(41,37,36,.4); display: flex; align-items: center; gap: 16px;
+  }
+  .roomglyph { width: 52px; height: 52px; border-radius: 16px; background: #f4f2ef; display: grid; place-items: center; font-size: 26px; flex: none; }
+  .startcard .body { flex: 1; min-width: 0; }
+  .startcard .room { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
+  .startcard .t { font-size: 19px; font-weight: 700; margin: 2px 0 3px; }
+  .startcard .m { font-size: 13px; color: var(--soft); }
+  .late { color: #d97706; font-weight: 600; }
+  .startcard .go { flex: none; border: 0; background: var(--go); color: #fff; font: inherit; font-weight: 700; padding: 13px 20px; border-radius: 14px; cursor: pointer; box-shadow: 0 8px 16px -8px rgba(5,150,105,.55); }
+
+  /* ROOM GRID */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .room {
+    background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 16px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 12px; min-height: 132px;
+  }
+  .room.clear { background: #fbfbfa; }
+  .room .rtop { display: flex; align-items: flex-start; justify-content: space-between; }
+  .room .glyph { font-size: 24px; }
+  .badge { font-size: 12px; font-weight: 700; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center; background: #f1efec; color: #78716c; }
+  .badge.hot { background: #fef3c7; color: #b45309; }
+  .badge.zero { background: #ecfdf5; color: var(--go); }
+  .room .rname { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+  .room .rnext { font-size: 12.5px; color: var(--soft); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .room .rnext .h { color: var(--her); font-weight: 600; }
+  .room .owners { display: flex; gap: 4px; margin-top: auto; }
+  .owners .d { width: 7px; height: 7px; border-radius: 50%; }
+  .d.me { background: var(--me); } .d.her { background: var(--her); } .d.any { background: var(--any); }
+  .room .allclear { font-size: 12.5px; color: var(--go); font-weight: 600; }
+
+  .foot { text-align: center; color: var(--soft); font-size: 13px; margin-top: 24px; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="head">
+      <div>
+        <h1>Your home today</h1>
+        <div class="sub">5 things across 4 rooms · nothing owed</div>
+      </div>
+      <a class="manage" href="#">Manage</a>
+    </div>
+
+    <div class="seg" role="tablist">
+      <button aria-pressed="true">All</button>
+      <button aria-pressed="false">Christal</button>
+      <button aria-pressed="false">Syd</button>
+    </div>
+
+    <!-- system's single pick, dressed as a room entry -->
+    <section class="start">
+      <div class="lbl">Start here</div>
+      <div class="startcard">
+        <div class="roomglyph">🧺</div>
+        <div class="body">
+          <div class="room">Laundry · Christal</div>
+          <div class="t">Laundry wash</div>
+          <div class="m">every 3 days · <span class="late">2 days over</span></div>
+        </div>
+        <button class="go">Done</button>
+      </div>
+    </section>
+
+    <!-- the house as zones -->
+    <div class="grid">
+      <div class="room">
+        <div class="rtop"><span class="glyph">🍳</span><span class="badge hot">3</span></div>
+        <div>
+          <div class="rname">Kitchen</div>
+          <div class="rnext"><span class="h">Syd</span> loads dishwasher → you</div>
+        </div>
+        <div class="owners"><span class="d her"></span><span class="d any"></span><span class="d me"></span></div>
+      </div>
+
+      <div class="room">
+        <div class="rtop"><span class="glyph">🧺</span><span class="badge">1</span></div>
+        <div>
+          <div class="rname">Laundry</div>
+          <div class="rnext">Finish — fold + put away</div>
+        </div>
+        <div class="owners"><span class="d me"></span></div>
+      </div>
+
+      <div class="room">
+        <div class="rtop"><span class="glyph">🐾</span><span class="badge">1</span></div>
+        <div>
+          <div class="rname">House</div>
+          <div class="rnext">Litter box</div>
+        </div>
+        <div class="owners"><span class="d any"></span></div>
+      </div>
+
+      <div class="room clear">
+        <div class="rtop"><span class="glyph">🛋️</span><span class="badge zero">✓</span></div>
+        <div>
+          <div class="rname">Living room</div>
+          <div class="allclear">All clear today</div>
+        </div>
+        <div class="rnext">Vacuum · tomorrow</div>
+      </div>
+
+      <div class="room clear">
+        <div class="rtop"><span class="glyph">🛁</span><span class="badge zero">✓</span></div>
+        <div>
+          <div class="rname">Bath</div>
+          <div class="allclear">All clear today</div>
+        </div>
+        <div class="rnext">Deep clean ×3 · Saturday</div>
+      </div>
+
+      <div class="room clear">
+        <div class="rtop"><span class="glyph">🍽️</span><span class="badge zero">✓</span></div>
+        <div>
+          <div class="rname">Dining</div>
+          <div class="allclear">All clear today</div>
+        </div>
+        <div class="rnext">Sweep · tomorrow</div>
+      </div>
+    </div>
+
+    <div class="foot">Tap a room to see its list. Rooms go quiet when they’re done.</div>
+  </div>
+</body>
+</html>

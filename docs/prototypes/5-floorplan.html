@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HomeOS — Floor Plan prototype</title>
+<style>
+  :root{
+    --bg:#eceae5; --ink:#292524; --soft:#9c968e; --line:#dcd8d1;
+    --me:#0ea5e9; --her:#fb7185; --any:#b8b3ac; --go:#059669;
+    --room:#ffffff; --room-quiet:#f3f1ec;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex;justify-content:center;}
+  .phone{width:100%;max-width:440px;min-height:100vh;display:flex;flex-direction:column;
+    padding:max(env(safe-area-inset-top),18px) 16px 0;}
+
+  .head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;}
+  h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0;}
+  .sub{font-size:12.5px;color:var(--soft);}
+  .manage{color:var(--soft);text-decoration:none;font-size:13px;font-weight:600;margin-top:4px;}
+
+  .seg{display:flex;gap:3px;background:#e0ddd6;border-radius:12px;padding:4px;margin-bottom:16px;}
+  .seg button{flex:1;border:0;background:transparent;color:var(--soft);font:inherit;font-weight:600;font-size:13.5px;padding:8px;border-radius:9px;cursor:pointer;}
+  .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.07);}
+
+  /* the blueprint */
+  .plan{position:relative;background:
+      linear-gradient(#0000 0 0) padding-box,
+      repeating-linear-gradient(0deg,#0000 0 22px,#0001 22px 23px),
+      repeating-linear-gradient(90deg,#0000 0 22px,#0001 22px 23px);
+    background-color:#f7f5f1;border:2px solid var(--line);border-radius:18px;
+    padding:10px;display:grid;gap:10px;
+    grid-template-columns:1.3fr 1fr 1fr;
+    grid-template-rows:repeat(3,1fr);
+    grid-template-areas:
+      "kitchen kitchen dining"
+      "living  living  bath"
+      "laundry studio  house";
+    aspect-ratio:1/1.08;}
+  .r{position:relative;background:var(--room);border:1.5px solid var(--line);border-radius:12px;
+    padding:10px 11px;display:flex;flex-direction:column;cursor:pointer;overflow:hidden;}
+  .r.quiet{background:var(--room-quiet);}
+  .r .nm{font-size:13px;font-weight:700;letter-spacing:-.01em;}
+  .r .nx{font-size:11px;color:var(--soft);margin-top:2px;line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .r .nx .h{color:var(--her);font-weight:700;}
+  .r .glyph{position:absolute;right:8px;bottom:6px;font-size:22px;opacity:.5;}
+
+  /* a pulsing count chip on rooms that have work */
+  .pin{position:absolute;top:8px;right:8px;min-width:22px;height:22px;padding:0 6px;border-radius:999px;
+    display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff;background:var(--any);}
+  .pin.me{background:var(--me);}.pin.her{background:var(--her);}.pin.any{background:#8a847b;}
+  .pin.hot{background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.5);animation:pulse 2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,158,11,.45);}70%{box-shadow:0 0 0 9px rgba(245,158,11,0);}100%{box-shadow:0 0 0 0 rgba(245,158,11,0);}}
+  .r.quiet .check{position:absolute;top:8px;right:8px;color:var(--go);font-weight:800;font-size:13px;}
+
+  .kitchen{grid-area:kitchen;}.dining{grid-area:dining;}.living{grid-area:living;}
+  .bath{grid-area:bath;}.laundry{grid-area:laundry;}.studio{grid-area:studio;}.house{grid-area:house;}
+
+  /* a small "start here" marker dropped on the map */
+  .startpin{position:absolute;left:9px;top:9px;display:flex;align-items:center;gap:5px;
+    background:#1c1917;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    padding:4px 9px;border-radius:999px;box-shadow:0 4px 10px -3px rgba(0,0,0,.4);}
+  .startpin .d{width:6px;height:6px;border-radius:50%;background:#34d399;}
+
+  /* bottom sheet: tapped room (shown open here for Laundry = the start-here room) */
+  .sheet{margin:14px -16px 0;background:#fff;border-top-left-radius:24px;border-top-right-radius:24px;
+    box-shadow:0 -10px 30px -16px rgba(0,0,0,.3);padding:16px 18px max(env(safe-area-inset-bottom),20px);}
+  .sheet .grab{width:38px;height:4px;border-radius:999px;background:#e2ddd6;margin:0 auto 12px;}
+  .sheet .sh-head{display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+  .sheet .sh-head .g{font-size:22px;}
+  .sheet .sh-head .nm{font-size:17px;font-weight:700;}
+  .sheet .sh-head .ct{margin-left:auto;font-size:12px;color:var(--soft);}
+  .task{display:flex;align-items:center;gap:12px;padding:11px 0;}
+  .task+.task{border-top:1px solid var(--line);}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .dot.me{background:var(--me);}.dot.her{background:var(--her);}.dot.any{background:var(--any);}
+  .task .body{flex:1;min-width:0;}
+  .task .tt{font-weight:600;font-size:15px;}
+  .task .mm{font-size:12px;color:var(--soft);}
+  .late{color:#d97706;font-weight:600;}
+  .go{flex:none;border:0;background:var(--go);color:#fff;font:inherit;font-weight:700;font-size:14px;padding:10px 16px;border-radius:12px;cursor:pointer;}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="head">
+      <div><h1>The house, right now</h1><div class="sub">3 rooms need you · 3 are clear</div></div>
+      <a class="manage" href="#">Manage</a>
+    </div>
+
+    <div class="seg" role="tablist">
+      <button aria-pressed="true">All</button>
+      <button aria-pressed="false">Christal</button>
+      <button aria-pressed="false">Syd</button>
+    </div>
+
+    <div class="plan">
+      <div class="r kitchen">
+        <span class="pin hot">3</span>
+        <div class="nm">Kitchen</div>
+        <div class="nx"><span class="h">Syd</span> loads dishwasher → you unload</div>
+        <span class="glyph">🍳</span>
+      </div>
+      <div class="r dining quiet">
+        <span class="check">✓</span>
+        <div class="nm">Dining</div>
+        <div class="nx">Sweep · tomorrow</div>
+        <span class="glyph">🍽️</span>
+      </div>
+      <div class="r living quiet">
+        <span class="check">✓</span>
+        <div class="nm">Living room</div>
+        <div class="nx">Vacuum · tomorrow</div>
+        <span class="glyph">🛋️</span>
+      </div>
+      <div class="r bath quiet">
+        <span class="check">✓</span>
+        <div class="nm">Bath</div>
+        <div class="nx">Deep clean ×3 · Sat</div>
+        <span class="glyph">🛁</span>
+      </div>
+      <div class="r laundry">
+        <span class="startpin"><span class="d"></span>START HERE</span>
+        <span class="pin me">1</span>
+        <div class="nm" style="margin-top:14px;">Laundry</div>
+        <div class="nx">Wash — 2 days over · then fold</div>
+        <span class="glyph">🧺</span>
+      </div>
+      <div class="r studio quiet">
+        <span class="check">✓</span>
+        <div class="nm">Studio</div>
+        <div class="nx">Reset · Mon</div>
+        <span class="glyph">🎨</span>
+      </div>
+      <div class="r house">
+        <span class="pin any">1</span>
+        <div class="nm">House</div>
+        <div class="nx">Litter box</div>
+        <span class="glyph">🐾</span>
+      </div>
+    </div>
+
+    <!-- tapped room (Laundry, the start-here pick) opens here -->
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="sh-head"><span class="g">🧺</span><span class="nm">Laundry</span><span class="ct">2 tasks</span></div>
+      <div class="task">
+        <span class="dot me"></span>
+        <div class="body"><div class="tt">Laundry wash</div><div class="mm">every 3 days · <span class="late">2 days over</span></div></div>
+        <button class="go">Done</button>
+      </div>
+      <div class="task">
+        <span class="dot me"></span>
+        <div class="body"><div class="tt">Laundry finish — fold + away</div><div class="mm">every 3 days · due today</div></div>
+        <button class="go">Done</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

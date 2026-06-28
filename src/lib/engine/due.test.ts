@@ -22,6 +22,7 @@ function intervalTask(everyDays: number, lastCompletedAt: number | null): TaskRo
     active_step: null,
     active_step_since: null,
     created_at: 0,
+    room_id: null,
   };
 }
 
@@ -39,6 +40,7 @@ function weeklyTask(days: number[], lastCompletedAt: number | null): TaskRow {
     active_step: null,
     active_step_since: null,
     created_at: 0,
+    room_id: null,
   };
 }
 
