@@ -15,6 +15,14 @@ const OWNER_DOT: Record<Owner, string> = {
   anyone: "bg-stone-300",
 };
 
+// A slight whose-is-whose card tint, echoing the owner dots: blue = Christal,
+// pink = Syd, neutral for shared. Kept soft so the day list still reads calm.
+const OWNER_TINT: Record<Owner, string> = {
+  me: "border-sky-100 bg-sky-50",
+  her: "border-rose-100 bg-rose-50",
+  anyone: "border-stone-100 bg-white",
+};
+
 const OWNER_NAME: Record<Owner, string> = {
   me: "Christal",
   her: "Syd",
@@ -379,7 +387,10 @@ export default function Page() {
                     return (
                       <div
                         key={task.id}
-                        className="flex items-center gap-3 rounded-2xl border border-stone-100 bg-white px-4 py-3 shadow-sm"
+                        className={
+                          "flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm " +
+                          OWNER_TINT[owner ?? "anyone"]
+                        }
                       >
                         <span
                           className={
