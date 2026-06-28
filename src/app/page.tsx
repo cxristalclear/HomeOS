@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
-import type { Owner, Task } from "@/lib/domain/types";
+import type { CadenceType, Owner, Task } from "@/lib/domain/types";
 import { bucketTasks, type BucketItem } from "@/lib/engine/buckets";
+import { activeStep } from "@/lib/engine/chain";
 import { overdueLabel } from "@/lib/engine/due";
 import { ownerInView, viewAttribution, type View } from "@/lib/engine/view";
 
@@ -13,6 +14,24 @@ const OWNER_DOT: Record<Owner, string> = {
   her: "bg-rose-400",
   anyone: "bg-stone-300",
 };
+
+const OWNER_NAME: Record<Owner, string> = {
+  me: "Christal",
+  her: "Syd",
+  anyone: "Anyone",
+};
+
+const OWNERS: Owner[] = ["me", "her", "anyone"];
+const QUICK_WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"]; // 0 = Sunday
+const QUICK_WEEKDAY_LABELS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 // Display labels for the views. The underlying owner values stay "me"/"her";
 // these are just what the two people are called on screen.
@@ -43,12 +62,54 @@ export default function Page() {
   // advance when the calendar day changes — otherwise a long-open tab is stuck
   // showing yesterday's "Today" (see the midnight effect below).
   const [now, setNow] = useState(() => Date.now());
+  // Transient "handed off to X" confirmation shown right after a chain step is
+  // completed, so a handoff reads as progress instead of looking like the tap
+  // did nothing (the step silently becomes the other person's). Slice 3a.
+  const [handoff, setHandoff] = useState<{ to: Owner; label: string } | null>(
+    null,
+  );
+  // Task open in the quick-edit sheet — tap a card to tune its owner/cadence
+  // right where it's shown, no trip to a buried editor. Slice 3c.
+  const [editing, setEditing] = useState<Task | null>(null);
 
   const refresh = useCallback(() => {
     getRepository().listTasks().then(setTasks);
   }, []);
 
   useEffect(refresh, [refresh]);
+
+  // Syd-first framing (Slice 3d): each device opens to its own person's jobs.
+  // Reuse the per-device push identity set when enabling notifications, and
+  // remember any manual view change — so Syd's phone shows Syd, not a shared
+  // planning console. Runs after mount to avoid an SSR/localStorage mismatch.
+  useEffect(() => {
+    try {
+      const stored =
+        localStorage.getItem("homeos.view") ||
+        localStorage.getItem("homeos.pushOwner");
+      if (stored === "me" || stored === "her" || stored === "all") {
+        setView(stored);
+      }
+    } catch {
+      /* localStorage unavailable — keep the default All view */
+    }
+  }, []);
+
+  const selectView = useCallback((v: View) => {
+    setView(v);
+    try {
+      localStorage.setItem("homeos.view", v);
+    } catch {
+      /* non-fatal: the view just won't persist on this device */
+    }
+  }, []);
+
+  // Auto-dismiss the handoff confirmation.
+  useEffect(() => {
+    if (!handoff) return;
+    const t = setTimeout(() => setHandoff(null), 4500);
+    return () => clearTimeout(t);
+  }, [handoff]);
 
   // Roll the day buckets over at local midnight. HomeOS runs on an always-on
   // wall-mounted iPad whose screen is mostly visible and untouched, so a focus
@@ -121,11 +182,69 @@ export default function Page() {
       setCompleting((prev) => ({ ...prev, [task.id]: true }));
 
       try {
-        await getRepository().completeTask(task.id, who, expectedStepId);
+        const updatedTask = await getRepository().completeTask(
+          task.id,
+          who,
+          expectedStepId,
+        );
+        // If a chain handed off to a next step (rather than resting), ping the
+        // new owner. Fire-and-forget — a failed/absent push backend must never
+        // block or surface in the Done flow.
+        if (updatedTask.kind === "chain") {
+          const active = activeStep(updatedTask, Date.now());
+          if (active) {
+            // Make the handoff visible on this screen (Slice 3a) and ping the
+            // new owner's device (Phase 2).
+            setHandoff({ to: active.step.owner, label: active.step.label });
+            fetch("/api/push/handoff", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                owner: active.step.owner,
+                taskName: updatedTask.name,
+                stepLabel: active.step.label,
+              }),
+            }).catch(() => {});
+          }
+        }
       } catch {
         // A stale chain completion (e.g. double-tap, or another tab already
         // advanced the handoff) is rejected by the repo. Swallow it and let the
         // refresh below re-render the real current state.
+      } finally {
+        inFlight.current.delete(task.id);
+        setCompleting((prev) => {
+          const next = { ...prev };
+          delete next[task.id];
+          return next;
+        });
+      }
+      setAsking(null);
+      refresh();
+    },
+    [refresh],
+  );
+
+  // "We did it together" (Slice 3b): re-anchor once and credit BOTH people.
+  // No model change — completeTask re-anchors + logs the first person, then we
+  // append a second completion for the other. Reachable only from the All-view
+  // "who?" prompt, which only opens for simple tasks (chains own each step).
+  const completeBoth = useCallback(
+    async (task: Task) => {
+      if (inFlight.current.has(task.id)) return;
+      inFlight.current.add(task.id);
+      setCompleting((prev) => ({ ...prev, [task.id]: true }));
+      try {
+        const repo = getRepository();
+        await repo.completeTask(task.id, "me");
+        await repo.recordCompletion({
+          task_id: task.id,
+          step_id: null,
+          who: "her",
+          at: Date.now(),
+        });
+      } catch {
+        // Swallow — refresh below re-renders the real state.
       } finally {
         inFlight.current.delete(task.id);
         setCompleting((prev) => {
@@ -181,7 +300,7 @@ export default function Page() {
         {VIEWS.map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setView(key)}
+            onClick={() => selectView(key)}
             aria-pressed={view === key}
             className={
               "flex-1 rounded-lg py-2 transition " +
@@ -268,7 +387,14 @@ export default function Page() {
                             OWNER_DOT[owner ?? "anyone"]
                           }
                         />
-                        <div className="min-w-0 flex-1">
+                        {/* Tap the task to tune its owner/cadence in place
+                            (Slice 3c). The Done button stays a separate target. */}
+                        <button
+                          type="button"
+                          onClick={() => setEditing(task)}
+                          aria-label={`Adjust ${task.name}`}
+                          className="min-w-0 flex-1 text-left"
+                        >
                           <div className="truncate font-medium leading-tight text-stone-800">
                             {task.name}
                           </div>
@@ -279,7 +405,7 @@ export default function Page() {
                               ? " · " + overdueLabel(since, now)
                               : ""}
                           </div>
-                        </div>
+                        </button>
                         {actionable && (
                           <button
                             onClick={() => onDone(item)}
@@ -328,9 +454,243 @@ export default function Page() {
                 Syd
               </button>
             </div>
+            {/* "We did it together" — credits both people (Slice 3b). */}
+            <button
+              onClick={() => completeBoth(asking)}
+              className="mt-2 w-full rounded-2xl bg-stone-100 py-3 text-sm font-medium text-stone-600 active:bg-stone-200"
+            >
+              Both — we did it together
+            </button>
           </div>
         </div>
       )}
+
+      {/* Visible handoff (Slice 3a): a chain step that completes hands off to the
+          next person — confirm it so the tap reads as progress, not a no-op. */}
+      {handoff && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-20 flex justify-center px-4">
+          <div className="flex items-center gap-2 rounded-2xl bg-stone-800 px-4 py-3 text-sm font-medium text-white shadow-lg">
+            <span className="text-emerald-300">✓</span>
+            <span>
+              Done — now it&apos;s {OWNER_NAME[handoff.to]}&apos;s:{" "}
+              {handoff.label}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <QuickEdit
+          task={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * Quick-edit sheet (Slice 3c) — tune a task's owner and cadence right from Home,
+ * so "this feels wrong" never means a trip to a buried editor. Simple tasks edit
+ * owner + cadence; a chain's owners live on its steps, so this tunes the chain's
+ * cadence and points to Manage for step ownership. Full CRUD still lives there.
+ */
+function QuickEdit({
+  task,
+  onClose,
+  onSaved,
+}: {
+  task: Task;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [owner, setOwner] = useState<Owner>(task.owner ?? "anyone");
+  const [cadenceType, setCadenceType] = useState<CadenceType>(
+    task.cadence_type,
+  );
+  const [everyDays, setEveryDays] = useState<number>(task.every_days ?? 3);
+  const [days, setDays] = useState<number[]>(task.days ?? [6]);
+  const [saving, setSaving] = useState(false);
+
+  const isChain = task.kind === "chain";
+  const valid = cadenceType === "interval" ? everyDays >= 1 : days.length > 0;
+
+  const save = async () => {
+    if (!valid || saving) return;
+    setSaving(true);
+    try {
+      await getRepository().updateTask(task.id, {
+        // A chain owns each step, so leave its (null) owner alone; simple tasks
+        // take the picked owner.
+        owner: isChain ? task.owner : owner,
+        cadence_type: cadenceType,
+        every_days: cadenceType === "interval" ? everyDays : null,
+        days: cadenceType === "weekly" ? [...days].sort() : null,
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-30 flex items-end justify-center bg-stone-900/30 p-4 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Adjust ${task.name}`}
+        className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div>
+          <div className="font-medium text-stone-800">{task.name}</div>
+          <div className="text-xs text-stone-400">
+            {task.area || "No area"}
+            {isChain ? ` · chain (${task.steps.length} steps)` : ""}
+          </div>
+        </div>
+
+        {!isChain && (
+          <div>
+            <div className="mb-1 text-xs font-medium text-stone-400">Owner</div>
+            <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
+              {OWNERS.map((o) => (
+                <button
+                  key={o}
+                  type="button"
+                  aria-pressed={owner === o}
+                  onClick={() => setOwner(o)}
+                  className={
+                    "flex-1 rounded-lg py-2 text-sm font-medium transition " +
+                    (owner === o
+                      ? "bg-white text-stone-800 shadow-sm"
+                      : "text-stone-400")
+                  }
+                >
+                  {OWNER_NAME[o]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div className="mb-1 text-xs font-medium text-stone-400">Cadence</div>
+          <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
+            <button
+              type="button"
+              aria-pressed={cadenceType === "interval"}
+              onClick={() => setCadenceType("interval")}
+              className={
+                "flex-1 rounded-lg py-2 text-sm font-medium transition " +
+                (cadenceType === "interval"
+                  ? "bg-white text-stone-800 shadow-sm"
+                  : "text-stone-400")
+              }
+            >
+              Every N days
+            </button>
+            <button
+              type="button"
+              aria-pressed={cadenceType === "weekly"}
+              onClick={() => setCadenceType("weekly")}
+              className={
+                "flex-1 rounded-lg py-2 text-sm font-medium transition " +
+                (cadenceType === "weekly"
+                  ? "bg-white text-stone-800 shadow-sm"
+                  : "text-stone-400")
+              }
+            >
+              Weekly
+            </button>
+          </div>
+
+          {cadenceType === "interval" ? (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-sm text-stone-500">Every</span>
+              <button
+                type="button"
+                aria-label="Fewer days"
+                onClick={() => setEveryDays((n) => Math.max(1, n - 1))}
+                className="h-9 w-9 rounded-lg bg-stone-100 text-stone-600 active:bg-stone-200"
+              >
+                −
+              </button>
+              <span className="w-8 text-center text-sm font-medium text-stone-800">
+                {everyDays}
+              </span>
+              <button
+                type="button"
+                aria-label="More days"
+                onClick={() => setEveryDays((n) => n + 1)}
+                className="h-9 w-9 rounded-lg bg-stone-100 text-stone-600 active:bg-stone-200"
+              >
+                +
+              </button>
+              <span className="text-sm text-stone-500">
+                {everyDays === 1 ? "day" : "days"}
+              </span>
+            </div>
+          ) : (
+            <div className="mt-2 flex gap-1">
+              {QUICK_WEEKDAYS.map((label, d) => {
+                const on = days.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    aria-label={QUICK_WEEKDAY_LABELS[d]}
+                    aria-pressed={on}
+                    onClick={() =>
+                      setDays((cur) =>
+                        on ? cur.filter((x) => x !== d) : [...cur, d],
+                      )
+                    }
+                    className={
+                      "h-9 flex-1 rounded-lg text-sm font-medium transition " +
+                      (on
+                        ? "bg-stone-800 text-white"
+                        : "bg-stone-100 text-stone-400")
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={save}
+            disabled={!valid || saving}
+            className="flex-1 rounded-2xl bg-stone-800 py-3 text-sm font-medium text-white active:bg-stone-700 disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-2xl px-5 py-3 text-sm font-medium text-stone-500 active:bg-stone-100"
+          >
+            Cancel
+          </button>
+        </div>
+
+        <Link
+          href="/manage"
+          className="block text-center text-xs font-medium text-stone-400"
+        >
+          More options in Manage
+        </Link>
+      </div>
+    </div>
   );
 }
