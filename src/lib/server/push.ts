@@ -26,14 +26,25 @@ interface SubscriptionRow {
   created_at: number;
 }
 
-// Configure VAPID once at module load. The non-null assertions are deliberate:
-// these env vars are required for push to work at all, and a missing one should
-// fail loudly rather than silently send unsigned notifications.
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-);
+// Configure VAPID lazily, on first send — NOT at module load. Next's build
+// imports this module to collect route data, and a missing/malformed key would
+// throw and fail the build (it did: "Vapid private key must be URL safe Base
+// 64"). Validating at request time keeps env entirely a runtime concern, and a
+// bad key surfaces as a handled request error instead of a broken build.
+let vapidConfigured = false;
+function configureVapid(): void {
+  if (vapidConfigured) return;
+  const subject = process.env.VAPID_SUBJECT;
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  if (!subject || !publicKey || !privateKey) {
+    throw new Error(
+      "Web push is not configured: set VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY.",
+    );
+  }
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  vapidConfigured = true;
+}
 
 /**
  * Build a server-side Supabase client from env. Reuses the shared factory; the
@@ -60,6 +71,7 @@ export async function sendToOwner(
   owner: "me" | "her",
   payload: PushPayload,
 ): Promise<{ sent: number; pruned: number }> {
+  configureVapid();
   const client = getSupabaseClient();
 
   const { data, error } = await client
