@@ -7,34 +7,36 @@ import type {
   TaskStepRow,
 } from "@/lib/domain/types";
 import type { NewTask, TaskRepository } from "./TaskRepository";
+import { activeStep, advanceChain } from "@/lib/engine/chain";
 
 /**
- * Slice 5 — the seam for the post-MVP Supabase swap. It implements
- * `TaskRepository` so the type system already guarantees a drop-in fit: when the
- * backend is ready, the only change is in `repository.ts` (return this instead of
- * `LocalStorageTaskRepository`).
+ * The Supabase adapter — the drop-in backend for the post-MVP swap. It
+ * implements `TaskRepository` so the only wiring change is in `repository.ts`
+ * (return this instead of `LocalStorageTaskRepository`).
  *
- * Deliberately *not wired*. The domain rows are already Supabase-shaped
- * (snake_case, see `domain/types.ts`), so each method maps to a thin query:
+ * The domain rows are already Supabase-shaped (snake_case, see
+ * `domain/types.ts`), so each method maps to a thin query:
  *
  *  - `listTasks`        → select tasks, join `task_steps` ordered by `position`
  *  - `createTask`       → insert task (+ steps), return the joined row
  *  - `updateTask`       → update tasks … where id = $id
- *  - `deleteTask`       → delete (cascade steps + completions via FK)
+ *  - `deleteTask`       → delete (steps cascade via FK; completions retained)
  *  - `setSteps`         → replace `task_steps` for the task, reset active_step
  *  - `completeTask`     → re-anchor (simple) / advance via `advanceChain` (chain),
- *                         then `recordCompletion` — ideally one RPC/transaction so
- *                         the row update and the completion log can't drift apart
+ *                         then `recordCompletion`
  *  - `recordCompletion` → insert completions
  *  - `listCompletions`  → select completions
+ *
+ * Mirrors `LocalStorageTaskRepository` semantics exactly. Like that adapter,
+ * writes are non-atomic read-modify-write sequences (no Postgres transaction),
+ * which is acceptable for single-household parity.
  *
  * The engine modules (`due`, `chain`, `buckets`) stay storage-agnostic and run
  * unchanged on top of whichever repository is wired here.
  */
 
-const NOT_WIRED =
-  "SupabaseTaskRepository is a Slice 5 stub — not wired yet. " +
-  "The MVP runs on LocalStorageTaskRepository (see repository.ts).";
+/** Generate a unique text id with a localStorage-style prefix. */
+const newId = (prefix: string): string => `${prefix}-${crypto.randomUUID()}`;
 
 /** A `tasks` row with its `task_steps` embedded by the join select. */
 type TaskRowWithSteps = TaskRow & { task_steps: TaskStepRow[] };
@@ -56,41 +58,192 @@ export class SupabaseTaskRepository implements TaskRepository {
     }));
   }
 
-  async createTask(_input: NewTask): Promise<Task> {
-    throw new Error(NOT_WIRED);
+  /** Re-select a single task with its steps joined and ordered by position. */
+  private async getJoinedTask(id: string): Promise<Task> {
+    const { data, error } = await this.client
+      .from("tasks")
+      .select("*, task_steps(*)")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+
+    const { task_steps, ...task } = data as unknown as TaskRowWithSteps;
+    return {
+      ...task,
+      steps: [...task_steps].sort((a, b) => a.position - b.position),
+    };
+  }
+
+  async createTask(input: NewTask): Promise<Task> {
+    const id = newId("task");
+    const row: TaskRow = {
+      id,
+      name: input.name,
+      area: input.area,
+      kind: input.kind,
+      owner: input.owner,
+      cadence_type: input.cadence_type,
+      every_days: input.every_days,
+      days: input.days,
+      last_completed_at: null,
+      active_step: null, // chains start resting; activation is computed from cadence
+      active_step_since: null,
+      created_at: Date.now(),
+    };
+
+    const { error: taskError } = await this.client.from("tasks").insert(row);
+    if (taskError) throw taskError;
+
+    const newSteps: TaskStepRow[] = (input.steps ?? []).map((s, position) => ({
+      id: newId("step"),
+      task_id: id,
+      position,
+      label: s.label,
+      owner: s.owner,
+    }));
+    if (newSteps.length > 0) {
+      const { error: stepsError } = await this.client
+        .from("task_steps")
+        .insert(newSteps);
+      if (stepsError) throw stepsError;
+    }
+
+    return this.getJoinedTask(id);
   }
 
   async updateTask(
-    _id: string,
-    _patch: Partial<Omit<Task, "id" | "created_at" | "steps">>,
+    id: string,
+    patch: Partial<Omit<Task, "id" | "created_at" | "steps">>,
   ): Promise<Task> {
-    throw new Error(NOT_WIRED);
+    // Never alter id/created_at; strip them defensively if a caller slips them in.
+    const { id: _id, created_at: _createdAt, steps: _steps, ...safePatch } =
+      patch as Partial<Task>;
+
+    const { error } = await this.client
+      .from("tasks")
+      .update(safePatch)
+      .eq("id", id);
+    if (error) throw error;
+
+    return this.getJoinedTask(id);
   }
 
-  async deleteTask(_id: string): Promise<void> {
-    throw new Error(NOT_WIRED);
+  async deleteTask(id: string): Promise<void> {
+    // task_steps cascade via FK; completions are intentionally retained
+    // (the schema has no FK from completions to tasks).
+    const { error } = await this.client.from("tasks").delete().eq("id", id);
+    if (error) throw error;
   }
 
   async setSteps(
-    _taskId: string,
-    _steps: Array<Pick<TaskStepRow, "label" | "owner">>,
+    taskId: string,
+    steps: Array<Pick<TaskStepRow, "label" | "owner">>,
   ): Promise<Task> {
-    throw new Error(NOT_WIRED);
+    // Replace the chain's steps wholesale.
+    const { error: deleteError } = await this.client
+      .from("task_steps")
+      .delete()
+      .eq("task_id", taskId);
+    if (deleteError) throw deleteError;
+
+    const fresh: TaskStepRow[] = steps.map((s, position) => ({
+      id: newId("step"),
+      task_id: taskId,
+      position,
+      label: s.label,
+      owner: s.owner,
+    }));
+    if (fresh.length > 0) {
+      const { error: insertError } = await this.client
+        .from("task_steps")
+        .insert(fresh);
+      if (insertError) throw insertError;
+    }
+
+    // Editing the chain's structure resets the handoff so the pointer can't
+    // outrun the new step list (and a re-shaped chain re-evaluates from cadence).
+    const { error: updateError } = await this.client
+      .from("tasks")
+      .update({ active_step: null, active_step_since: null })
+      .eq("id", taskId);
+    if (updateError) throw updateError;
+
+    return this.getJoinedTask(taskId);
   }
 
   async completeTask(
-    _taskId: string,
-    _who: Owner,
-    _expectedStepId?: string | null,
+    taskId: string,
+    who: Owner,
+    expectedStepId?: string | null,
   ): Promise<Task> {
-    throw new Error(NOT_WIRED);
+    const task = await this.getJoinedTask(taskId);
+    const at = Date.now();
+
+    let patch: Partial<
+      Pick<TaskRow, "last_completed_at" | "active_step" | "active_step_since">
+    >;
+    let stepId: string | null;
+    // Chain completions are attributed to the step's owner, not the caller — the
+    // system owns the handoff, so the log records who the step actually belonged
+    // to regardless of what the UI passed. Simple tasks keep the caller's `who`.
+    let completionWho: Owner = who;
+
+    if (task.kind === "chain") {
+      // The system owns the handoff: advance the active step, resting +
+      // re-anchoring when the last step completes. Refuses if nothing is
+      // surfaced (a resting chain has no step to complete).
+      const active = activeStep(task, at);
+      if (active === null) {
+        throw new Error(`completeTask: chain ${taskId} has no active step`);
+      }
+      // Reject a stale completion: the caller's step must still be the active
+      // one, or a replayed Done would advance the wrong step and corrupt the
+      // handoff + completion log (see TaskRepository.completeTask). NO write,
+      // NO log.
+      if (expectedStepId != null && active.step.id !== expectedStepId) {
+        throw new Error(
+          `completeTask: chain ${taskId} active step changed — stale completion rejected`,
+        );
+      }
+      const advance = advanceChain(task, at);
+      if (advance === null) {
+        throw new Error(`completeTask: chain ${taskId} has no active step`);
+      }
+      patch = advance.patch;
+      stepId = advance.completedStep.id;
+      completionWho = advance.completedStep.owner;
+    } else {
+      // Re-anchor cadence to when it was actually done — not the calendar. This
+      // is what guarantees "no debt": missed cycles never accrue (see why-doc).
+      patch = { last_completed_at: at };
+      stepId = null;
+    }
+
+    const { error } = await this.client
+      .from("tasks")
+      .update(patch)
+      .eq("id", taskId);
+    if (error) throw error;
+
+    await this.recordCompletion({
+      task_id: taskId,
+      step_id: stepId,
+      who: completionWho,
+      at,
+    });
+
+    return this.getJoinedTask(taskId);
   }
 
-  async recordCompletion(_completion: Omit<CompletionRow, "id">): Promise<void> {
-    throw new Error(NOT_WIRED);
+  async recordCompletion(completion: Omit<CompletionRow, "id">): Promise<void> {
+    const row: CompletionRow = { id: newId("done"), ...completion };
+    const { error } = await this.client.from("completions").insert(row);
+    if (error) throw error;
   }
 
   async listCompletions(): Promise<CompletionRow[]> {
-    throw new Error(NOT_WIRED);
+    const { data, error } = await this.client.from("completions").select("*");
+    if (error) throw error;
+    return (data ?? []) as unknown as CompletionRow[];
   }
 }

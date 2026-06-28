@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
+import {
+  disablePush,
+  enablePush,
+  getPushState,
+  pushSupported,
+  type PushOwner,
+} from "@/lib/data/pushSubscriptions";
 import type {
   CadenceType,
   Owner,
@@ -105,6 +112,33 @@ export default function ManagePage() {
 
   useEffect(refresh, [refresh]);
 
+  // Group tasks by area for calm, scannable sections. Tasks with no area fall
+  // into an "Unsorted" group shown last. Purely a display transform — the
+  // underlying list and its order from the repo are untouched.
+  const groups = useMemo(() => {
+    if (!tasks) return [];
+    const byArea = new Map<string, Task[]>();
+    for (const task of tasks) {
+      const area = task.area.trim();
+      const key = area.length > 0 ? area : "";
+      const list = byArea.get(key);
+      if (list) list.push(task);
+      else byArea.set(key, [task]);
+    }
+    return Array.from(byArea.entries())
+      .map(([area, items]) => ({
+        area,
+        label: area.length > 0 ? area : "Unsorted",
+        items,
+      }))
+      .sort((a, b) => {
+        // Real areas first (alphabetical), Unsorted last.
+        if (a.area === "" && b.area !== "") return 1;
+        if (b.area === "" && a.area !== "") return -1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [tasks]);
+
   const isValid =
     form != null &&
     form.name.trim().length > 0 &&
@@ -162,27 +196,39 @@ export default function ManagePage() {
     [form, refresh],
   );
 
+  const taskCount = tasks?.length ?? 0;
+
   return (
     <main className="mx-auto max-w-md px-5 pb-24 pt-8 sm:max-w-3xl sm:px-8 sm:pt-12">
       <div className="mb-1 flex items-baseline justify-between">
         <h1 className="text-2xl font-semibold tracking-tight text-stone-800 sm:text-3xl">
           Manage
         </h1>
-        <Link href="/" className="text-sm font-medium text-stone-400">
-          ← Home
-        </Link>
+        <div className="flex items-baseline gap-3">
+          {tasks !== null && (
+            <span className="text-xs text-stone-400">
+              {taskCount} {taskCount === 1 ? "task" : "tasks"}
+            </span>
+          )}
+          <Link href="/" className="text-sm font-medium text-stone-400">
+            ← Home
+          </Link>
+        </div>
       </div>
       <p className="mb-6 text-sm text-stone-400">
         Add, edit, and delete tasks. The system handles the rest — what&apos;s
         due, when, and whose turn it is.
       </p>
 
+      <NotificationsCard />
+
       {form === null && (
         <button
           onClick={() => setForm(blankForm())}
-          className="mb-6 w-full rounded-2xl border border-dashed border-stone-300 py-3 text-sm font-medium text-stone-500 active:bg-stone-100 sm:max-w-md"
+          className="mb-7 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-stone-300 py-3 text-sm font-medium text-stone-500 transition active:bg-stone-100 sm:max-w-md"
         >
-          + Add task
+          <span className="text-base leading-none text-stone-400">+</span>
+          Add task
         </button>
       )}
 
@@ -199,44 +245,68 @@ export default function ManagePage() {
 
       {tasks === null ? (
         <p className="text-sm text-stone-400">Loading…</p>
+      ) : tasks.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-stone-200 py-12 text-center text-stone-400">
+          <div className="mb-2 text-3xl">◦</div>
+          <div className="text-sm">No tasks yet — add your first.</div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              className="flex items-center gap-3 rounded-2xl border border-stone-100 bg-white px-4 py-3 shadow-sm"
-            >
-              <span
-                className={
-                  "h-2 w-2 shrink-0 rounded-full " +
-                  OWNER_DOT[task.owner ?? "anyone"]
-                }
-              />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium leading-tight text-stone-800">
-                  {task.name}
-                </div>
-                <div className="truncate text-xs text-stone-400">
-                  {task.area ? task.area + " · " : ""}
-                  {cadenceSummary(task)}
-                  {task.kind === "chain"
-                    ? ` · chain (${task.steps.length} steps)`
-                    : ""}
-                </div>
+        <div className="space-y-7">
+          {groups.map((group) => (
+            <section key={group.label}>
+              <div className="mb-2 flex items-baseline gap-2 px-1">
+                <h2 className="text-sm font-semibold text-stone-800">
+                  {group.label}
+                </h2>
+                <span className="text-xs text-stone-300">
+                  {group.items.length}
+                </span>
               </div>
-              <button
-                onClick={() => setForm(formFromTask(task))}
-                className="shrink-0 rounded-xl px-3 py-2 text-sm font-medium text-stone-500 active:bg-stone-100"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => remove(task)}
-                className="shrink-0 rounded-xl px-3 py-2 text-sm font-medium text-rose-500 active:bg-rose-50"
-              >
-                Delete
-              </button>
-            </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {group.items.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 rounded-2xl border border-stone-100 bg-white px-4 py-3 shadow-sm"
+                  >
+                    <span
+                      className={
+                        "h-2 w-2 shrink-0 rounded-full " +
+                        OWNER_DOT[task.owner ?? "anyone"]
+                      }
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium leading-tight text-stone-800">
+                          {task.name}
+                        </span>
+                        {task.kind === "chain" && (
+                          <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-stone-500">
+                            Chain · {task.steps.length}
+                          </span>
+                        )}
+                      </div>
+                      <div className="truncate text-xs text-stone-400">
+                        {cadenceSummary(task)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setForm(formFromTask(task))}
+                      className="shrink-0 rounded-xl px-3 py-2 text-sm font-medium text-stone-500 transition active:bg-stone-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => remove(task)}
+                      aria-label={`Delete ${task.name}`}
+                      className="shrink-0 rounded-xl px-3 py-2 text-sm font-medium text-stone-300 transition active:bg-rose-50 active:text-rose-500"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
@@ -244,10 +314,137 @@ export default function ManagePage() {
   );
 }
 
+/* ---------------- notifications (this device) ---------------- */
+
+const PUSH_OWNERS: PushOwner[] = ["me", "her"];
+
+/**
+ * Per-device web push control (v2 Phase 2). Notifications live on the device,
+ * not the account — each iPad/phone subscribes independently and as one person,
+ * so a handoff pings the right screen. Degrades to a brief note when the browser
+ * can't do push or the app is running without the synced backend.
+ */
+function NotificationsCard() {
+  const supported = pushSupported();
+  const backend = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+  const available = supported && backend;
+
+  const [enabled, setEnabled] = useState(false);
+  const [owner, setOwner] = useState<PushOwner>("me");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!available) return;
+    let cancelled = false;
+    getPushState().then((state) => {
+      if (cancelled) return;
+      setEnabled(state.enabled);
+      if (state.owner) setOwner(state.owner);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [available]);
+
+  const toggle = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (enabled) {
+        await disablePush();
+        setEnabled(false);
+      } else {
+        await enablePush(owner);
+        setEnabled(true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, enabled, owner]);
+
+  return (
+    <div className="mb-7 rounded-2xl border border-stone-100 bg-white p-4 shadow-sm sm:max-w-md">
+      <div className="flex items-center gap-2">
+        <span
+          className={
+            "h-2 w-2 shrink-0 rounded-full " +
+            (enabled ? "bg-emerald-500" : "bg-stone-300")
+          }
+          aria-hidden
+        />
+        <div className="text-sm font-semibold text-stone-800">
+          Notifications
+        </div>
+        <span className="text-xs text-stone-300">this device</span>
+      </div>
+
+      {!available ? (
+        <p className="mt-1.5 pl-4 text-xs text-stone-400">
+          {supported
+            ? "Notifications need the synced backend."
+            : "This device can't show notifications."}
+        </p>
+      ) : (
+        <>
+          <p className="mt-1.5 pl-4 text-xs text-stone-400">
+            {enabled
+              ? `On for this device as ${OWNER_LABEL[owner]}.`
+              : "Off — turn on to get a ping when a chain hands off to you."}
+          </p>
+
+          {!enabled && (
+            <div className="mt-3 flex gap-1 rounded-xl bg-stone-100 p-1">
+              {PUSH_OWNERS.map((o) => (
+                <Pill
+                  key={o}
+                  active={owner === o}
+                  onClick={() => setOwner(o)}
+                >
+                  {OWNER_LABEL[o]}
+                </Pill>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={toggle}
+            disabled={busy}
+            className={
+              "mt-3 w-full rounded-2xl py-3 text-sm font-medium transition disabled:opacity-40 " +
+              (enabled
+                ? "text-rose-500 active:bg-rose-50"
+                : "bg-stone-800 text-white active:bg-stone-700")
+            }
+          >
+            {busy
+              ? enabled
+                ? "Turning off…"
+                : "Turning on…"
+              : enabled
+                ? "Turn off"
+                : "Enable"}
+          </button>
+
+          {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- editor ---------------- */
 
 const FIELD =
-  "w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-800 outline-none focus:border-stone-400";
+  "w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-stone-400";
+
+const SECTION_LABEL = "mb-1.5 text-xs font-medium uppercase tracking-wide text-stone-400";
 
 function Pill({
   active,
@@ -319,38 +516,56 @@ function Editor({
     });
 
   return (
-    <div className="mb-6 space-y-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:max-w-md">
-      <div className="text-sm font-semibold text-stone-800">
-        {form.id === null ? "New task" : "Edit task"}
+    <div className="mb-7 space-y-5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:max-w-md">
+      <div className="flex items-baseline justify-between">
+        <div className="text-base font-semibold text-stone-800">
+          {form.id === null ? "New task" : "Edit task"}
+        </div>
+        <span className="text-xs text-stone-300">
+          {form.kind === "chain" ? "Chain" : "Simple"}
+        </span>
       </div>
 
-      <input
-        className={FIELD}
-        placeholder="Task name"
-        value={form.name}
-        onChange={(e) => patch({ name: e.target.value })}
-      />
-      <input
-        className={FIELD}
-        placeholder="Area (e.g. Kitchen)"
-        value={form.area}
-        onChange={(e) => patch({ area: e.target.value })}
-      />
+      {/* basics */}
+      <div className="space-y-2">
+        <input
+          className={FIELD}
+          placeholder="Task name"
+          aria-label="Task name"
+          value={form.name}
+          onChange={(e) => patch({ name: e.target.value })}
+        />
+        <input
+          className={FIELD}
+          placeholder="Area (e.g. Kitchen)"
+          aria-label="Area"
+          value={form.area}
+          onChange={(e) => patch({ area: e.target.value })}
+        />
+      </div>
 
       {/* kind */}
-      <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
-        <Pill active={form.kind === "simple"} onClick={() => patch({ kind: "simple" })}>
-          Simple
-        </Pill>
-        <Pill active={form.kind === "chain"} onClick={() => patch({ kind: "chain" })}>
-          Chain
-        </Pill>
+      <div>
+        <div className={SECTION_LABEL}>Type</div>
+        <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
+          <Pill active={form.kind === "simple"} onClick={() => patch({ kind: "simple" })}>
+            Simple
+          </Pill>
+          <Pill active={form.kind === "chain"} onClick={() => patch({ kind: "chain" })}>
+            Chain
+          </Pill>
+        </div>
+        <p className="mt-1.5 text-xs text-stone-400">
+          {form.kind === "simple"
+            ? "One job, one owner."
+            : "Handed off step by step between people."}
+        </p>
       </div>
 
       {/* owner — simple only (chains own each step) */}
       {form.kind === "simple" && (
         <div>
-          <div className="mb-1 text-xs font-medium text-stone-400">Owner</div>
+          <div className={SECTION_LABEL}>Owner</div>
           <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
             {OWNERS.map((o) => (
               <Pill key={o} active={form.owner === o} onClick={() => patch({ owner: o })}>
@@ -363,7 +578,7 @@ function Editor({
 
       {/* cadence */}
       <div>
-        <div className="mb-1 text-xs font-medium text-stone-400">Cadence</div>
+        <div className={SECTION_LABEL}>Cadence</div>
         <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
           <Pill
             active={form.cadenceType === "interval"}
@@ -380,12 +595,13 @@ function Editor({
         </div>
 
         {form.cadenceType === "interval" ? (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2">
             <span className="text-sm text-stone-500">Every</span>
             <input
               type="number"
               min={1}
-              className={FIELD + " w-20"}
+              aria-label="Days between"
+              className={FIELD + " w-20 text-center"}
               value={form.everyDays}
               onChange={(e) =>
                 patch({ everyDays: Math.max(1, Number(e.target.value) || 1) })
@@ -394,7 +610,7 @@ function Editor({
             <span className="text-sm text-stone-500">days</span>
           </div>
         ) : (
-          <div className="mt-2 flex gap-1">
+          <div className="mt-3 flex gap-1">
             {WEEKDAYS.map((label, d) => {
               const on = form.days.includes(d);
               return (
@@ -411,10 +627,10 @@ function Editor({
                     })
                   }
                   className={
-                    "h-9 flex-1 rounded-lg text-sm font-medium transition " +
+                    "h-10 flex-1 rounded-lg text-sm font-medium transition " +
                     (on
-                      ? "bg-stone-800 text-white"
-                      : "bg-stone-100 text-stone-400")
+                      ? "bg-stone-800 text-white shadow-sm"
+                      : "bg-stone-100 text-stone-400 active:bg-stone-200")
                   }
                 >
                   {label}
@@ -428,18 +644,19 @@ function Editor({
       {/* chain steps */}
       {form.kind === "chain" && (
         <div>
-          <div className="mb-1 text-xs font-medium text-stone-400">
-            Steps (handed off in order)
-          </div>
+          <div className={SECTION_LABEL}>Steps (handed off in order)</div>
           <div className="space-y-2">
             {form.steps.map((step, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <div className="flex flex-col">
+              <div
+                key={i}
+                className="flex items-center gap-2 rounded-xl bg-stone-50 p-2"
+              >
+                <div className="flex flex-col text-xs leading-none">
                   <button
                     type="button"
                     onClick={() => moveStep(i, -1)}
                     disabled={i === 0}
-                    className="text-stone-400 disabled:opacity-30"
+                    className="px-1 py-0.5 text-stone-400 transition disabled:opacity-30"
                     aria-label="Move up"
                   >
                     ▲
@@ -448,20 +665,25 @@ function Editor({
                     type="button"
                     onClick={() => moveStep(i, 1)}
                     disabled={i === form.steps.length - 1}
-                    className="text-stone-400 disabled:opacity-30"
+                    className="px-1 py-0.5 text-stone-400 transition disabled:opacity-30"
                     aria-label="Move down"
                   >
                     ▼
                   </button>
                 </div>
+                <span className="shrink-0 text-xs font-medium tabular-nums text-stone-300">
+                  {i + 1}
+                </span>
                 <input
                   className={FIELD + " flex-1"}
                   placeholder={`Step ${i + 1} (e.g. Load)`}
+                  aria-label={`Step ${i + 1} label`}
                   value={step.label}
                   onChange={(e) => setStep(i, { label: e.target.value })}
                 />
                 <select
                   className={FIELD + " w-24"}
+                  aria-label={`Step ${i + 1} owner`}
                   value={step.owner}
                   onChange={(e) => setStep(i, { owner: e.target.value as Owner })}
                 >
@@ -475,7 +697,7 @@ function Editor({
                   type="button"
                   onClick={() => removeStep(i)}
                   disabled={form.steps.length === 1}
-                  className="px-1 text-rose-400 disabled:opacity-30"
+                  className="px-1 text-rose-400 transition disabled:opacity-30"
                   aria-label="Remove step"
                 >
                   ✕
@@ -486,24 +708,24 @@ function Editor({
           <button
             type="button"
             onClick={addStep}
-            className="mt-2 text-sm font-medium text-stone-500"
+            className="mt-2 text-sm font-medium text-stone-500 transition active:text-stone-700"
           >
             + Add step
           </button>
         </div>
       )}
 
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 border-t border-stone-100 pt-4">
         <button
           onClick={onSave}
           disabled={!canSave || isSaving}
-          className="flex-1 rounded-2xl bg-stone-800 py-3 text-sm font-medium text-white active:bg-stone-700 disabled:opacity-40"
+          className="flex-1 rounded-2xl bg-stone-800 py-3 text-sm font-medium text-white transition active:bg-stone-700 disabled:opacity-40"
         >
           {isSaving ? "Saving…" : "Save"}
         </button>
         <button
           onClick={onCancel}
-          className="rounded-2xl px-5 py-3 text-sm font-medium text-stone-500 active:bg-stone-100"
+          className="rounded-2xl px-5 py-3 text-sm font-medium text-stone-500 transition active:bg-stone-100"
         >
           Cancel
         </button>
