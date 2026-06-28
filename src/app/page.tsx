@@ -96,6 +96,11 @@ export default function Page() {
         localStorage.getItem("homeos.view") ||
         localStorage.getItem("homeos.pushOwner");
       if (stored === "me" || stored === "her" || stored === "all") {
+        // Intentional post-hydration setState: the saved view lives in
+        // localStorage (client-only), so it can't seed useState without
+        // desyncing SSR and tripping a hydration mismatch on the toggle. This is
+        // the one-time read the rule can't tell apart from a derived-state misuse.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setView(stored);
       }
     } catch {
@@ -286,11 +291,27 @@ export default function Page() {
     [view, complete],
   );
 
+  // Time-aware greeting, addressed to the active person (Syd-first framing).
+  const hour = new Date(now).getHours();
+  const partOfDay =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const viewName = view === "me" ? "Christal" : view === "her" ? "Syd" : null;
+  const greeting = viewName ? `${partOfDay}, ${viewName}` : partOfDay;
+
+  // Focus + grouped: lead Today with one "start here" item the system picks
+  // (worst-first), then group the rest by room so the day reads as a few small
+  // clusters instead of one long wall. Upcoming days render below, unchanged.
+  const todayItems = buckets.find((b) => b.label === "Today")?.items ?? [];
+  const futureBuckets = buckets.filter((b) => b.label !== "Today");
+  const hero = todayItems[0] ?? null;
+  const restToday = todayItems.slice(1);
+  const groupedRest = groupByArea(restToday);
+
   return (
     <main className="mx-auto max-w-md px-5 pb-24 pt-8 sm:max-w-3xl sm:px-8 sm:pt-12">
       <div className="mb-1 flex items-baseline justify-between">
         <h1 className="text-2xl font-semibold tracking-tight text-stone-800 sm:text-3xl">
-          Home
+          {greeting}
         </h1>
         <div className="flex items-baseline gap-3">
           <span className="text-xs text-stone-400">{todayCount} today</span>
@@ -300,8 +321,7 @@ export default function Page() {
         </div>
       </div>
       <p className="mb-5 text-sm text-stone-400">
-        Today&apos;s the short list. The rest is spread across the week — nothing
-        owed for what slips.
+        Start with the one up top — nothing&apos;s owed for what slips.
       </p>
 
       <div className="mb-6 flex gap-1 rounded-xl bg-stone-100 p-1 text-sm font-medium sm:max-w-sm">
@@ -331,109 +351,124 @@ export default function Page() {
         </div>
       ) : (
         <>
-          {/* Today is clear but the week ahead isn't empty — give the "you're
-              done for today" reassurance while still showing what's coming. */}
+          {/* Today is clear but the week ahead isn't empty — reassure, then show
+              what's coming. */}
           {todayCount === 0 && (
             <div className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-700">
               <span className="text-base leading-none">✓</span>
               <span>Nothing due today — go do your own thing.</span>
             </div>
           )}
-          <div className="grid grid-cols-1 gap-y-7 sm:grid-cols-2 sm:gap-x-8">
-          {buckets.map((bucket) => {
-            const isToday = bucket.label === "Today";
-            const isLater = bucket.order === 99;
-            // Today and Later span the full width; the weekday buckets between
-            // them flow into two columns on iPad so the week reads at a glance.
-            const span = isToday || isLater ? "sm:col-span-2" : "";
-            return (
-              <section key={bucket.key} className={span}>
-                <div className="mb-2 flex items-baseline gap-2 px-1">
-                  <span
-                    className={
-                      "text-sm font-semibold " +
-                      (isToday ? "text-stone-800" : "text-stone-400")
-                    }
-                  >
-                    {bucket.label}
-                  </span>
-                  <span className="text-xs text-stone-300">
-                    {bucket.items.length}
-                  </span>
-                </div>
 
-                <div className={isLater ? "space-y-1" : "space-y-2"}>
-                  {bucket.items.map((item) => {
-                    const { task, since, owner, stepLabel, stepId } = item;
-                    // Chains are actionable only when their step is surfaced to
-                    // its owner (stepId set); simple tasks can be done anytime.
-                    const actionable = task.kind === "simple" || stepId !== null;
-                    if (isLater) {
-                      return (
-                        <div
-                          key={task.id}
-                          className="flex items-center gap-3 px-4 py-2 text-stone-400"
-                        >
-                          <span
-                            className={
-                              "h-1.5 w-1.5 shrink-0 rounded-full " +
-                              OWNER_DOT[owner ?? "anyone"]
-                            }
-                          />
-                          <span className="truncate text-sm">{task.name}</span>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div
-                        key={task.id}
-                        className={
-                          "flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm " +
-                          OWNER_TINT[owner ?? "anyone"]
-                        }
-                      >
-                        <span
-                          className={
-                            "h-2 w-2 shrink-0 rounded-full " +
-                            OWNER_DOT[owner ?? "anyone"]
-                          }
+          {/* Start here: the single top thing for this view — the system makes
+              the call so the day has one clear entry point, not a wall. */}
+          {hero && (
+            <section className="mb-7">
+              <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-stone-400">
+                Start here
+              </div>
+              <ItemCard
+                item={hero}
+                now={now}
+                prominent
+                busy={!!completing[hero.task.id]}
+                onDone={onDone}
+                onEdit={setEditing}
+              />
+            </section>
+          )}
+
+          {/* The rest of today, grouped by room so it reads as a few small
+              clusters. */}
+          {restToday.length > 0 && (
+            <section className="mb-7">
+              <div className="mb-3 flex items-baseline gap-2 px-1">
+                <span className="text-sm font-semibold text-stone-800">
+                  The rest of today
+                </span>
+                <span className="text-xs text-stone-300">
+                  {restToday.length}
+                </span>
+              </div>
+              <div className="space-y-5">
+                {groupedRest.map((group) => (
+                  <div key={group.area}>
+                    <div className="mb-1.5 flex items-baseline gap-2 px-1">
+                      <span className="text-xs font-medium uppercase tracking-wide text-stone-400">
+                        {group.area}
+                      </span>
+                      <span className="text-xs text-stone-300">
+                        {group.items.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {group.items.map((item) => (
+                        <ItemCard
+                          key={item.task.id}
+                          item={item}
+                          now={now}
+                          busy={!!completing[item.task.id]}
+                          onDone={onDone}
+                          onEdit={setEditing}
                         />
-                        {/* Tap the task to tune its owner/cadence in place
-                            (Slice 3c). The Done button stays a separate target. */}
-                        <button
-                          type="button"
-                          onClick={() => setEditing(task)}
-                          aria-label={`Adjust ${task.name}`}
-                          className="min-w-0 flex-1 text-left"
-                        >
-                          <div className="truncate font-medium leading-tight text-stone-800">
-                            {task.name}
-                          </div>
-                          <div className="text-xs text-stone-400">
-                            {stepLabel ? stepLabel + " · " : ""}
-                            {task.area}
-                            {isToday && since !== null
-                              ? " · " + overdueLabel(since, now)
-                              : ""}
-                          </div>
-                        </button>
-                        {actionable && (
-                          <button
-                            onClick={() => onDone(item)}
-                            disabled={!!completing[task.id]}
-                            className="shrink-0 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 active:bg-emerald-100 disabled:opacity-40"
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Upcoming days, then Later. */}
+          {futureBuckets.length > 0 && (
+            <div className="grid grid-cols-1 gap-y-7 sm:grid-cols-2 sm:gap-x-8">
+              {futureBuckets.map((bucket) => {
+                const isLater = bucket.order === 99;
+                const span = isLater ? "sm:col-span-2" : "";
+                return (
+                  <section key={bucket.key} className={span}>
+                    <div className="mb-2 flex items-baseline gap-2 px-1">
+                      <span className="text-sm font-semibold text-stone-400">
+                        {bucket.label}
+                      </span>
+                      <span className="text-xs text-stone-300">
+                        {bucket.items.length}
+                      </span>
+                    </div>
+                    <div className={isLater ? "space-y-1" : "space-y-2"}>
+                      {bucket.items.map((item) =>
+                        isLater ? (
+                          <div
+                            key={item.task.id}
+                            className="flex items-center gap-3 px-4 py-2 text-stone-400"
                           >
-                            Done
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-          </div>
+                            <span
+                              className={
+                                "h-1.5 w-1.5 shrink-0 rounded-full " +
+                                OWNER_DOT[item.owner ?? "anyone"]
+                              }
+                            />
+                            <span className="truncate text-sm">
+                              {item.task.name}
+                            </span>
+                          </div>
+                        ) : (
+                          <ItemCard
+                            key={item.task.id}
+                            item={item}
+                            now={now}
+                            busy={!!completing[item.task.id]}
+                            onDone={onDone}
+                            onEdit={setEditing}
+                          />
+                        ),
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
@@ -501,6 +536,100 @@ export default function Page() {
         />
       )}
     </main>
+  );
+}
+
+/**
+ * Group bucket items by their task's area, preserving first-seen order — which
+ * is worst-first within Today, so the most-overdue rooms lead.
+ */
+function groupByArea(
+  items: BucketItem[],
+): Array<{ area: string; items: BucketItem[] }> {
+  const order: string[] = [];
+  const map = new Map<string, BucketItem[]>();
+  for (const it of items) {
+    const area = it.task.area || "Other";
+    if (!map.has(area)) {
+      map.set(area, []);
+      order.push(area);
+    }
+    map.get(area)!.push(it);
+  }
+  return order.map((area) => ({ area, items: map.get(area)! }));
+}
+
+/**
+ * One task card — a tinted, tappable row with a Done button. `prominent` renders
+ * the larger "start here" hero variant. Tapping the body opens quick-edit; the
+ * Done button is a separate target.
+ */
+function ItemCard({
+  item,
+  now,
+  busy,
+  onDone,
+  onEdit,
+  prominent = false,
+}: {
+  item: BucketItem;
+  now: number;
+  busy: boolean;
+  onDone: (item: BucketItem) => void;
+  onEdit: (task: Task) => void;
+  prominent?: boolean;
+}) {
+  const { task, since, owner, stepLabel, stepId } = item;
+  // Chains are actionable only when their step is surfaced to its owner.
+  const actionable = task.kind === "simple" || stepId !== null;
+  return (
+    <div
+      className={
+        "flex items-center gap-3 rounded-2xl border shadow-sm " +
+        (prominent ? "px-5 py-4 " : "px-4 py-3 ") +
+        OWNER_TINT[owner ?? "anyone"]
+      }
+    >
+      <span
+        className={
+          "shrink-0 rounded-full " +
+          (prominent ? "h-2.5 w-2.5 " : "h-2 w-2 ") +
+          OWNER_DOT[owner ?? "anyone"]
+        }
+      />
+      <button
+        type="button"
+        onClick={() => onEdit(task)}
+        aria-label={`Adjust ${task.name}`}
+        className="min-w-0 flex-1 text-left"
+      >
+        <div
+          className={
+            "truncate font-medium leading-tight text-stone-800 " +
+            (prominent ? "text-lg" : "")
+          }
+        >
+          {task.name}
+        </div>
+        <div className="text-xs text-stone-400">
+          {stepLabel ? stepLabel + " · " : ""}
+          {task.area}
+          {since !== null ? " · " + overdueLabel(since, now) : ""}
+        </div>
+      </button>
+      {actionable && (
+        <button
+          onClick={() => onDone(item)}
+          disabled={busy}
+          className={
+            "shrink-0 rounded-xl bg-emerald-50 font-medium text-emerald-600 active:bg-emerald-100 disabled:opacity-40 " +
+            (prominent ? "px-5 py-2.5 text-sm" : "px-4 py-2 text-sm")
+          }
+        >
+          Done
+        </button>
+      )}
+    </div>
   );
 }
 
