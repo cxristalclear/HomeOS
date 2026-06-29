@@ -32,7 +32,13 @@ export default function WallPage() {
   const [now, setNow] = useState(() => Date.now());
 
   const refresh = useCallback(() => {
-    getRepository().listTasks().then(setTasks);
+    getRepository()
+      .listTasks()
+      .then(setTasks)
+      .catch(() => {
+        // Fail open: show an empty task list rather than staying on the loading skeleton.
+        setTasks([]);
+      });
   }, []);
 
   useEffect(refresh, [refresh]);
