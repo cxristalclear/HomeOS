@@ -44,6 +44,16 @@ export default function WallPage() {
 
   // Face state machine: "ambient" (resting) | "awake" (floor plan shown).
   const [face, setFace] = useState<"ambient" | "awake">("ambient");
+  // faceRef mirrors face state so the visibilitychange handler can read current
+  // face synchronously without a stale closure and without using a setState
+  // functional-updater to run side-effects (which React may double-invoke in
+  // StrictMode, leaving dangling timers). Always update faceRef alongside setFace
+  // via setFaceAndRef (CR-03).
+  const faceRef = useRef<"ambient" | "awake">("ambient");
+  const setFaceAndRef = (f: "ambient" | "awake") => {
+    faceRef.current = f;
+    setFace(f);
+  };
 
   // The floor currently displayed in AwakeLayer (set on wake via wakeFloor()).
   const [activeFloorId, setActiveFloorId] = useState<string | null>(null);
@@ -71,7 +81,7 @@ export default function WallPage() {
     clearIdleTimer();
     idleTimerRef.current = setTimeout(() => {
       // On expiry: return to ambient, clear selection.
-      setFace("ambient");
+      setFaceAndRef("ambient");
       setSelectedRoomId(null);
       idleTimerRef.current = null;
     }, IDLE_TIMEOUT_MS);
@@ -124,15 +134,13 @@ export default function WallPage() {
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         tick();
-        // If the wall was awake when the device came back, restart the idle timer fresh.
-        // Use a functional state read via setFace to avoid a stale closure — we only
-        // want to restart if CURRENTLY awake.
-        setFace((currentFace) => {
-          if (currentFace === "awake") {
-            startIdleTimer();
-          }
-          return currentFace; // no state change — just reading
-        });
+        // If the wall was awake when the device came back, restart the idle timer.
+        // Read faceRef.current synchronously — avoids a stale closure without
+        // using a setState functional-updater to run side-effects (which React
+        // may double-invoke in StrictMode, leaving dangling timers) (CR-03).
+        if (faceRef.current === "awake") {
+          startIdleTimer();
+        }
       } else {
         // Screen hidden (device sleeping or tab backgrounded) — clear the idle timer.
         // Do not fire the return-to-ambient immediately on hide; restart on show.
@@ -235,7 +243,7 @@ export default function WallPage() {
 
     setWakeRoomId(resolvedWakeRoomId);
     setSelectedRoomId(resolvedWakeRoomId);
-    setFace("awake");
+    setFaceAndRef("awake");
 
     // Start the idle timer immediately on wake (WNAV-02).
     startIdleTimer();
