@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
 import type { Floor, Room, Task } from "@/lib/domain/types";
 import { buildLayoutView } from "@/lib/engine/layout";
@@ -9,6 +9,7 @@ import { dueTodayCounts } from "@/lib/engine/dueTodayCounts";
 import { nextThing } from "@/lib/engine/nextThing";
 import { wakeFloor } from "@/lib/engine/wakeFloor";
 import { AwakeLayer, ERRANDS_SENTINEL } from "./AwakeLayer";
+import { IDLE_TIMEOUT_MS } from "./constants";
 import { WallFooter } from "./WallFooter";
 import { WallHero } from "./WallHero";
 import { WallQueue } from "./WallQueue";
@@ -19,11 +20,12 @@ import { WallTopBar } from "./WallTopBar";
  *
  * Phase 1: ambient face only (WallHero + WallQueue, display-only).
  * Phase 3 (Plan 02): tap the ambient face → awake floor-plan face.
- *   - face state: "ambient" | "awake"
- *   - On wake: compute wakeFloor(), pre-select the Next Thing's room (WAWK-03).
- *   - Both layers are mounted simultaneously (ambient hidden when awake) so
- *     Plan 03-03 can crossfade them.
- *   - No swipe, floor indicator, animation, or idle timer yet — those are Plan 03.
+ * Phase 3 (Plan 03): adds the full navigation + lifecycle polish:
+ *   - ~400ms ambient↔awake crossfade (both layers, opacity+scale); reduced-motion aware.
+ *   - Horizontal swipe between floors + tappable FloorIndicator (WNAV-03).
+ *   - ~90s idle timer → return to ambient; any tap/swipe resets it (WNAV-02).
+ *   - Errands tile stays pinned across all floors (WAWK-02).
+ *   - visibilitychange pattern extended: on hide clear timer; on show restart if awake.
  *
  * Day buckets advance at local midnight (scheduleMidnight timer) and on
  * visibilitychange — the same always-on-iPad pattern as the phone Home page.
@@ -41,7 +43,6 @@ export default function WallPage() {
   const [now, setNow] = useState(() => Date.now());
 
   // Face state machine: "ambient" (resting) | "awake" (floor plan shown).
-  // Plan 03-03 adds the idle timer + crossfade; for now, awake is sticky.
   const [face, setFace] = useState<"ambient" | "awake">("ambient");
 
   // The floor currently displayed in AwakeLayer (set on wake via wakeFloor()).
@@ -49,6 +50,40 @@ export default function WallPage() {
 
   // The currently selected room/errands tile. String roomId or ERRANDS_SENTINEL.
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+
+  // The wake room id — the room that holds the Next Thing and carries StartHereFlag.
+  // Stable after wake (not affected by later taps).
+  const [wakeRoomId, setWakeRoomId] = useState<string | null>(null);
+
+  // ── Idle timer ref (WNAV-02) ────────────────────────────────────────────
+  // Held in a ref so clearing/setting never triggers a re-render.
+  // The timer fires only while awake; on expiry → return to ambient.
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearIdleTimer = useCallback(() => {
+    if (idleTimerRef.current !== null) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, []);
+
+  const startIdleTimer = useCallback(() => {
+    clearIdleTimer();
+    idleTimerRef.current = setTimeout(() => {
+      // On expiry: return to ambient, clear selection.
+      setFace("ambient");
+      setSelectedRoomId(null);
+      idleTimerRef.current = null;
+    }, IDLE_TIMEOUT_MS);
+  }, [clearIdleTimer]);
+
+  /**
+   * Called by AwakeLayer on any user interaction (tap or swipe).
+   * Resets the 90s idle timer so the clock only counts down from the last action.
+   */
+  const handleInteraction = useCallback(() => {
+    startIdleTimer();
+  }, [startIdleTimer]);
 
   const refresh = useCallback(() => {
     // Load tasks and layout in parallel; each fails open to an empty value.
@@ -68,17 +103,18 @@ export default function WallPage() {
   // Roll the day buckets over at local midnight. The wall iPad is always-on, so
   // a focus event almost never fires — a timer is what actually advances the day.
   // visibilitychange is the catch-up for the case the device slept across midnight.
+  // Also drives the idle timer: clear on hide, restart fresh on show-if-awake.
   useEffect(() => {
     const tick = () => {
       setNow(Date.now());
       refresh();
     };
 
-    let timer: ReturnType<typeof setTimeout>;
+    let midnightTimer: ReturnType<typeof setTimeout>;
     const scheduleMidnight = () => {
       const nextMidnight = new Date();
       nextMidnight.setHours(24, 0, 0, 0); // start of tomorrow, local time
-      timer = setTimeout(() => {
+      midnightTimer = setTimeout(() => {
         tick();
         scheduleMidnight();
       }, nextMidnight.getTime() - Date.now());
@@ -86,15 +122,31 @@ export default function WallPage() {
     scheduleMidnight();
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") tick();
+      if (document.visibilityState === "visible") {
+        tick();
+        // If the wall was awake when the device came back, restart the idle timer fresh.
+        // Use a functional state read via setFace to avoid a stale closure — we only
+        // want to restart if CURRENTLY awake.
+        setFace((currentFace) => {
+          if (currentFace === "awake") {
+            startIdleTimer();
+          }
+          return currentFace; // no state change — just reading
+        });
+      } else {
+        // Screen hidden (device sleeping or tab backgrounded) — clear the idle timer.
+        // Do not fire the return-to-ambient immediately on hide; restart on show.
+        clearIdleTimer();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(midnightTimer);
+      clearIdleTimer();
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refresh]);
+  }, [refresh, clearIdleTimer, startIdleTimer]);
 
   // Compute the hero item: worst-first due item across the whole household.
   // null when nothing is due; distinguished from tasks === null (still loading).
@@ -124,12 +176,6 @@ export default function WallPage() {
     return buildLayoutView(tasks, layout, now);
   }, [tasks, layout, now]);
 
-  // The FloorView for the active floor (the floor wakeFloor selected on wake).
-  const activeFloor = useMemo(() => {
-    if (!layoutView || !activeFloorId) return null;
-    return layoutView.floors.find((f) => f.floor.id === activeFloorId) ?? null;
-  }, [layoutView, activeFloorId]);
-
   /**
    * Room tile selection toggle (WAWK-05).
    * Re-tapping the selected room deselects it.
@@ -147,15 +193,23 @@ export default function WallPage() {
     );
   }, []);
 
-  // The wake room id to pass as `wakeRoomId` to AwakeLayer (the room with
-  // StartHereFlag). This is stable after wake — we track the room selected on
-  // wake separately from the user's tap selection.
-  // We derive it from the pre-selected state at wake time: the wakeRoomId shown
-  // to AwakeLayer is the initially pre-selected room (not affected by later taps).
-  // Since we don't need it to change after wake, we can store it alongside face.
-  const [wakeRoomId, setWakeRoomId] = useState<string | null>(null);
+  /**
+   * Floor switching — called by swipe gesture or FloorIndicator tap.
+   * Resets selectedRoomId so the StartHereFlag context remains correct per floor.
+   */
+  const handleSelectFloor = useCallback((floorId: string) => {
+    setActiveFloorId(floorId);
+    // Clear per-floor selection when switching floors.
+    setSelectedRoomId(null);
+  }, []);
 
-  // Extended wake handler that also captures wakeRoomId for the StartHereFlag.
+  /**
+   * Wake handler — tap anywhere on the ambient face.
+   * 1. Computes wakeFloor (the floor with the Next Thing).
+   * 2. Pre-selects the Next Thing's room (WAWK-03).
+   * 3. Transitions to awake face.
+   * 4. Starts the 90s idle timer (WNAV-02).
+   */
   const handleWakeWithFlag = useCallback(() => {
     if (!tasks || !layout) return;
 
@@ -176,7 +230,24 @@ export default function WallPage() {
     setWakeRoomId(resolvedWakeRoomId);
     setSelectedRoomId(resolvedWakeRoomId);
     setFace("awake");
-  }, [tasks, layout, now]);
+
+    // Start the idle timer immediately on wake (WNAV-02).
+    startIdleTimer();
+  }, [tasks, layout, now, startIdleTimer]);
+
+  // ── Crossfade CSS helpers ───────────────────────────────────────────────
+  // Both layers are always mounted, absolutely positioned in <main>, and
+  // animated simultaneously via CSS transitions so the face change is smooth.
+  //
+  // Ambient layer (inverse crossfade — moves to background on wake):
+  //   awake:   opacity 0, scale 1.03, pointer-events none
+  //   ambient: opacity 1, scale 1,    pointer-events auto
+  //
+  // Awake layer receives `visible` prop; AwakeLayer owns its own crossfade classes.
+  //
+  // Duration: 400ms ease-in-out (both layers). Suppressed by motion-reduce:transition-none
+  // in AwakeLayer; here we use the Tailwind variant on the ambient wrapper.
+  const ambientVisible = face === "ambient";
 
   return (
     // wall-surface: applies CSS vars + font-smoothing scoped to this route only
@@ -190,27 +261,32 @@ export default function WallPage() {
 
       {/*
         Both the ambient and awake layers live inside <main> in a shared
-        relative-positioned container. They are absolutely positioned so Plan
-        03-03 can crossfade between them. The ambient layer is hidden (pointer-
-        events-none, opacity-0) when awake; the awake layer is hidden when
-        ambient. The layers are always mounted so the crossfade can start from
-        the right paint state.
+        relative-positioned container. They are absolutely positioned so both
+        crossfade simultaneously (no janky stacking).
+
+        Ambient layer crossfade (WNAV-01 inverse):
+          ambient: opacity 1, scale 1    (resting state)
+          awake:   opacity 0, scale 1.03 (recedes on wake — scale gives depth)
+        Transition: 400ms ease-in-out. Suppressed under prefers-reduced-motion.
       */}
       <main
         role="main"
         className="relative flex flex-1 overflow-hidden"
       >
         {/* ── Ambient face ─────────────────────────────────────────────────── */}
-        {/*
-          When awake, the ambient layer stays mounted but hidden so Plan 03-03
-          can crossfade. cursor-pointer + the onPointerDown overlay triggers wake.
-        */}
         <div
-          className={`absolute inset-0 flex ${face === "awake" ? "pointer-events-none opacity-0" : "opacity-100"}`}
-          aria-hidden={face === "awake"}
+          className={[
+            "absolute inset-0 flex",
+            "transition-[opacity,transform] duration-[400ms] ease-in-out",
+            "motion-reduce:transition-none",
+            ambientVisible
+              ? "opacity-100 scale-100 pointer-events-auto"
+              : "opacity-0 scale-[1.03] pointer-events-none",
+          ].join(" ")}
+          aria-hidden={!ambientVisible}
         >
           {/* Tap-to-wake capture overlay — sits on top of ambient content */}
-          {face === "ambient" && (
+          {ambientVisible && (
             <div
               className="absolute inset-0 z-10 cursor-pointer"
               aria-label="Tap to wake floor plan"
@@ -234,19 +310,23 @@ export default function WallPage() {
 
         {/* ── Awake face ───────────────────────────────────────────────────── */}
         {/*
-          Only rendered when layout data is ready and a floor has been selected.
-          Stays mounted-but-hidden when ambient (for Plan 03-03 crossfade).
-          For now, it's simply shown/hidden with opacity — no animation yet.
+          Always mounted once layout is ready. The `visible` prop drives the
+          400ms crossfade in AwakeLayer (opacity 0→1, scale 0.985→1).
+          Only rendered after layout data is available (avoids passing null floors).
         */}
-        {face === "awake" && layoutView && activeFloor ? (
+        {layoutView && activeFloorId ? (
           <AwakeLayer
-            floor={activeFloor}
+            floors={layoutView.floors}
+            activeFloorId={activeFloorId}
             errands={layoutView.errands}
             now={now}
             wakeRoomId={wakeRoomId}
             selectedRoomId={selectedRoomId}
+            visible={face === "awake"}
+            onSelectFloor={handleSelectFloor}
             onSelectRoom={handleSelectRoom}
             onSelectErrands={handleSelectErrands}
+            onInteraction={handleInteraction}
           />
         ) : null}
       </main>
