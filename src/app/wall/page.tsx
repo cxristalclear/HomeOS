@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRepository } from "@/lib/data/repository";
 import type { Task } from "@/lib/domain/types";
+import { bucketTasks } from "@/lib/engine/buckets";
+import { dueTodayCounts } from "@/lib/engine/dueTodayCounts";
 import { nextThing } from "@/lib/engine/nextThing";
 import { WallFooter } from "./WallFooter";
 import { WallHero } from "./WallHero";
+import { WallQueue } from "./WallQueue";
+import { WallStatusChips } from "./WallStatusChips";
 import { WallTopBar } from "./WallTopBar";
 
 /**
@@ -71,11 +75,24 @@ export default function WallPage() {
     [tasks, now],
   );
 
+  // Today bucket items (worst-first) — shared by WallQueue and dueTodayCounts.
+  // Derived from the same bucketTasks call the hero uses so there's no divergence.
+  const todayItems = useMemo(() => {
+    if (!tasks) return [];
+    return bucketTasks(tasks, now).find((b) => b.key === "today")?.items ?? [];
+  }, [tasks, now]);
+
+  // Per-person due-today counts — used by WallStatusChips.
+  const counts = useMemo(
+    () => (tasks ? dueTodayCounts(tasks, now) : null),
+    [tasks, now],
+  );
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-stone-950 text-stone-50">
       <WallTopBar />
 
-      {/* Two-column content region: hero left, queue+chips right (Plan 02) */}
+      {/* Two-column content region: hero left, queue+chips right */}
       <main
         role="main"
         className="flex flex-1 overflow-hidden"
@@ -85,8 +102,12 @@ export default function WallPage() {
           <WallHero item={tasks === null ? null : hero} loading={tasks === null} now={now} />
         </div>
 
-        {/* Right column — "Then today" queue + status chips (Plan 02 fills this) */}
-        <div className="flex w-[45%] flex-col px-8 py-8" />
+        {/* Right column — "Then today" queue + status chips (WAMB-05, WAMB-06) */}
+        <div className="flex w-[45%] flex-col gap-6 px-8 py-8">
+          <WallQueue todayItems={todayItems} hero={hero} now={now} />
+          {/* Chips are hidden while loading (counts === null) per the UI-SPEC */}
+          {counts !== null && <WallStatusChips counts={counts} />}
+        </div>
       </main>
 
       <WallFooter />
