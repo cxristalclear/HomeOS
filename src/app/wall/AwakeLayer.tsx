@@ -220,7 +220,6 @@ export function AwakeLayer({
           regardless of floor (WAWK-02 pinning, UI-SPEC Component 7). */}
       {!floor || floor.rooms.length === 0 ? (
         <>
-          {!floor && null}
           {floor && (
             <p className="text-ghost text-[12px]">No rooms on this floor yet</p>
           )}
