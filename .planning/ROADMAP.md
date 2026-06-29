@@ -39,7 +39,10 @@ Phases 1 and 2 can run in parallel (parallelization: on). Phases 3+ depend on bo
   3. When nothing is due the hero shows a calm empty state — no guilt counter, no debt framing
   4. "Then today" lists the remaining due items for today beneath the hero, worst-first
   5. Per-person chips show each person's due-today count; Anyone-owned items count toward both Christal and Syd
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Wall skeleton + Next Thing hero, rendering the nextThing() worst-first selector (WAMB-01/02/03/04)
+- [ ] 01-02-PLAN.md — "Then today" queue + per-person status chips, anyone-counts-both (WAMB-05/06)
 **UI hint**: yes
 
 ### Phase 2: Foundation Finish
@@ -125,7 +128,7 @@ Phase 1 and Phase 2 can run in parallel. Phase 3 requires both. Phases 4 → 5 �
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Ambient Face | 0/TBD | Not started | - |
+| 1. Ambient Face | 0/2 | Not started | - |
 | 2. Foundation Finish | 0/TBD | Not started | - |
 | 3. Awake Floor-Plan Face + Navigation | 0/TBD | Not started | - |
 | 4. Room Rail — Done/Together | 0/TBD | Not started | - |
