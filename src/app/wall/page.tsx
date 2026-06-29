@@ -81,8 +81,9 @@ export default function WallPage() {
     [tasks, now],
   );
 
-  // Today bucket items (worst-first) — shared by WallQueue and dueTodayCounts.
-  // Derived from the same bucketTasks call the hero uses so there's no divergence.
+  // Today bucket items (worst-first) — computed independently from nextThing's
+  // internal bucketTasks call, but with identical inputs (tasks + now) so results
+  // are always in sync. dueTodayCounts makes a third separate call for the same reason.
   const todayItems = useMemo(() => {
     if (!tasks) return [];
     return bucketTasks(tasks, now).find((b) => b.key === "today")?.items ?? [];
