@@ -83,7 +83,10 @@ Plans:
   4. After ~90 seconds with no interaction the wall returns to ambient; any tap resets the timer
   5. Tapping a Room tile marks it selected (rail behavior follows in Phase 4)
 
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 03-01-PLAN.md — wakeFloor() engine fn + roomPeek helper (pure, unit-tested)
+- [ ] 03-02-PLAN.md — awake floor-plan render + tap-to-wake (tiles, badges, Errands, Start here, selection)
+- [ ] 03-03-PLAN.md — navigation: crossfade, swipe + floor indicator, 90s idle return
 **UI hint**: yes
 
 ### Phase 4: Room Rail — Done/Together
