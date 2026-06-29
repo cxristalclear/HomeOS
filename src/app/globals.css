@@ -6,3 +6,82 @@ body {
   background: #fafaf9;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ── Wall design-system: CSS custom properties ───────────────────────────────
+   Applied only inside .wall-surface so phone routes are completely unaffected.
+   ─────────────────────────────────────────────────────────────────────────── */
+.wall-surface {
+  /* Hairline — a very faint white border used as dividers and card edges */
+  --hairline: rgba(255, 255, 255, 0.07);
+  /* Glass inset highlight — top edge of cards, gives the glass-shelf feel */
+  --glass-edge: rgba(255, 255, 255, 0.06);
+
+  /* Optical sizing for Fraunces — auto so the font adjusts stroke contrast */
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Hearth glow — the ambient centrepiece behind the hero ──────────────────
+   A large, soft radial that slowly drifts to give the surface a living feel.
+   Reduced-motion: keep the gradient but freeze the drift.
+   ─────────────────────────────────────────────────────────────────────────── */
+.wall-hearth-glow {
+  /* Position: absolute, fills its container — parent must be relative */
+  pointer-events: none;
+  border-radius: 50%;
+  /* Soft teal-tinged radial that fades to transparent at the edges */
+  background: radial-gradient(
+    ellipse at center,
+    rgba(47, 212, 191, 0.065) 0%,
+    rgba(106, 166, 255, 0.045) 35%,
+    transparent 68%
+  );
+}
+
+/* Drift animation — class applied unconditionally; reduced-motion overrides it */
+.wall-hearth-glow-animate {
+  animation: glow-drift 28s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-hearth-glow-animate {
+    animation: none;
+  }
+}
+
+/* ── Wall vignette — depth at the edges ─────────────────────────────────────
+   Very subtle, just darkens the perimeter. No film grain.
+   ─────────────────────────────────────────────────────────────────────────── */
+.wall-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  background: radial-gradient(
+    120% 120% at 50% 40%,
+    transparent 55%,
+    rgba(0, 0, 0, 0.28)
+  );
+}
+
+/* ── Wall hairline border utilities ─────────────────────────────────────────
+   Using CSS var so the value is centralized. Tailwind's JIT can't generate
+   rgba() border-color from config values cleanly.
+   ─────────────────────────────────────────────────────────────────────────── */
+.wall-hairline {
+  border: 1px solid var(--hairline);
+}
+
+.wall-hairline-b {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.wall-hairline-r {
+  border-right: 1px solid var(--hairline);
+}
+
+.wall-glass-inset {
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}

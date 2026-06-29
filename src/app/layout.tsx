@@ -1,6 +1,26 @@
 import type { Metadata, Viewport } from "next";
+import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
+
+// Inter — wall UI text; weights used by the wall design system
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+// Fraunces — wall display serif (hero h1, section titles, footer italic)
+// optical-size axis: 9..144. Must use weight: "variable" when specifying axes.
+// The variable font covers all weights 100-900, so 300/400/500 are all available.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: "variable",
+  axes: ["opsz"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Home",
@@ -47,7 +67,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="text-stone-800">
+      {/* CSS variables for Inter + Fraunces are available anywhere in the tree.
+          The phone surfaces don't reference them (they use system-sans via Tailwind
+          defaults). Only wall components opt in via font-wall-sans / font-wall-serif. */}
+      <body className={`text-stone-800 ${inter.variable} ${fraunces.variable}`}>
         {children}
         <ServiceWorkerRegister />
       </body>
