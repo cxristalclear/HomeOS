@@ -26,8 +26,8 @@ Requirements for shipping the Wall end-to-end, live on the mounted iPad. Each ma
 - [x] **WAMB-02**: The ambient face shows the house-wide **Next Thing** hero (owner, task, no-debt "N days over") in glanceable across-the-room type
 - [x] **WAMB-03**: With nothing due, the hero shows the plain no-debt empty state, never a guilt counter
 - [x] **WAMB-04**: `nextThing(tasks, now)` returns the single worst-first item (or null), ties broken `since → created_at → id` (unit-tested)
-- [ ] **WAMB-05**: A "Then today" queue lists the rest of today's due items across everyone, worst-first
-- [ ] **WAMB-06**: Per-person status chips show each person's due-today (Anyone-owned counts toward both, via `ownerInView`)
+- [x] **WAMB-05**: A "Then today" queue lists the rest of today's due items across everyone, worst-first
+- [x] **WAMB-06**: Per-person status chips show each person's due-today (Anyone-owned counts toward both, via `ownerInView`)
 
 ### Wall — awake (floor-plan) face (WAWK)
 
@@ -98,8 +98,8 @@ Which phases cover which requirements.
 | WAMB-02 | Phase 1 | Complete |
 | WAMB-03 | Phase 1 | Complete |
 | WAMB-04 | Phase 1 | Complete |
-| WAMB-05 | Phase 1 | Pending |
-| WAMB-06 | Phase 1 | Pending |
+| WAMB-05 | Phase 1 | Complete |
+| WAMB-06 | Phase 1 | Complete |
 | FND-01 | Phase 2 | Pending |
 | FND-02 | Phase 2 | Pending |
 | FND-03 | Phase 2 | Pending |

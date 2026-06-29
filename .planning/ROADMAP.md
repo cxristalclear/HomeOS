@@ -19,7 +19,7 @@ user-visible value.
 
 Phases 1 and 2 can run in parallel (parallelization: on). Phases 3+ depend on both.
 
-- [ ] **Phase 1: Ambient Face** - Wall skeleton + Next Thing hero + "Then today" queue + status chips; zero foundation dependency; ships first
+- [x] **Phase 1: Ambient Face** - Wall skeleton + Next Thing hero + "Then today" queue + status chips; zero foundation dependency; ships first (completed 2026-06-29)
 - [ ] **Phase 2: Foundation Finish** - Manage Room picker, Settings Floors/Rooms, live Supabase migration HITL (parallel with Phase 1)
 - [ ] **Phase 3: Awake Floor-Plan Face + Navigation** - Floor tiles with Attention badges, wakeFloor(), tap→awake, 90s idle→ambient, swipe between floors
 - [ ] **Phase 4: Room Rail — Done/Together** - Room task rail, Done who-prompt, Together, chain handoff preview with stale-completion guard
@@ -43,13 +43,13 @@ Phases 1 and 2 can run in parallel (parallelization: on). Phases 3+ depend on bo
   4. "Then today" lists the remaining due items for today beneath the hero, worst-first
   5. Per-person chips show each person's due-today count; Anyone-owned items count toward both Christal and Syd
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 Plans:
 
 - [x] 01-PLAN.md
-- [ ] 02-PLAN.md
+- [x] 02-PLAN.md
 - [x] 01-01-PLAN.md — Wall skeleton + Next Thing hero, rendering the nextThing() worst-first selector (WAMB-01/02/03/04)
-- [ ] 01-02-PLAN.md — "Then today" queue + per-person status chips, anyone-counts-both (WAMB-05/06)
+- [x] 01-02-PLAN.md — "Then today" queue + per-person status chips, anyone-counts-both (WAMB-05/06)
 
 **UI hint**: yes
 
@@ -154,7 +154,7 @@ Phase 1 and Phase 2 can run in parallel. Phase 3 requires both. Phases 4 → 5 �
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Ambient Face | 1/2 | In Progress|  |
+| 1. Ambient Face | 2/2 | Complete   | 2026-06-29 |
 | 2. Foundation Finish | 0/TBD | Not started | - |
 | 3. Awake Floor-Plan Face + Navigation | 0/TBD | Not started | - |
 | 4. Room Rail — Done/Together | 0/TBD | Not started | - |

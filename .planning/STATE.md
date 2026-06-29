@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: ambient-face
-status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-06-29T01:04:52.987Z"
+status: verifying
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-06-29T01:13:40.446Z"
 last_activity: 2026-06-29
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 14
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-06-28)
 
 Phase: 01 (ambient-face) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-29 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 291 | 3 tasks | 6 files |
+| Phase 01 P02 | 257 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,8 @@ Recent decisions affecting current work:
 - Device Auto-Lock → Never is the non-negotiable keep-awake baseline; Wake Lock is best-effort (Phase 7)
 - [Phase ?]: nextThing() delegates to bucketTasks() rather than re-deriving due math
 - [Phase ?]: WallHero fully implemented in Task 2 commit to keep build green throughout
+- [Phase ?]: dueTodayCounts delegates to bucketTasks + ownerInView — no due logic re-derived; anyone-counts-both rule owned by ownerInView and pinned by tests
+- [Phase ?]: todayItems derived from a single bucketTasks call in page.tsx and passed as prop to WallQueue (no duplicate call)
 
 ### Pending Todos
 
@@ -80,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-29T01:04:52.980Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-06-29T01:13:40.438Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
