@@ -184,6 +184,20 @@ export default function WallPage() {
     return buildLayoutView(tasks, layout, now);
   }, [tasks, layout, now]);
 
+  // When the layout changes (e.g. a floor is deleted at midnight refresh),
+  // validate that activeFloorId still exists in the new floor list. If it
+  // doesn't, fall back to the first floor so AwakeLayer never shows a stale
+  // floor name as "active" in FloorIndicator (WR-03).
+  useEffect(() => {
+    if (!layoutView || !activeFloorId) return;
+    const stillExists = layoutView.floors.some(
+      (f) => f.floor.id === activeFloorId,
+    );
+    if (!stillExists) {
+      setActiveFloorId(layoutView.floors[0]?.floor.id ?? null);
+    }
+  }, [layoutView, activeFloorId]);
+
   /**
    * Room tile selection toggle (WAWK-05).
    * Re-tapping the selected room deselects it.
