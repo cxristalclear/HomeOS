@@ -1,7 +1,7 @@
 ---
 phase: 3
 slug: awake-floor-plan-face-navigation
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-29
@@ -41,23 +41,27 @@ All spacing follows the 8-point scale already used in Phase 1 wall components.
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px (`p-1`, `gap-1`) | Icon-to-text gap within a tile, badge padding |
-| sm | 8px (`p-2`, `gap-2`) | Grid gap between Room tiles |
-| md | 16px (`px-4`, `gap-4`) | Tile internal padding (sides), floor indicator gap |
+| xs | 4px (`p-1`, `gap-1`) | Icon-to-text gap within a tile |
+| sm | 8px (`p-2`, `gap-2`) | Grid gap between Room tiles; flag padding (`px-2 py-1` → 8/4px) |
+| md | 16px (`p-4`, `gap-4`) | Tile internal padding (all sides), floor indicator gap |
 | lg | 24px (`px-6`, `py-6`) | Awake face outer padding (matches Phase 1 hero `px-10 py-8` rhythm) |
 | xl | 32px | Section separation (plan-cap to grid) |
 | 2xl | 48px | Not used in Phase 3 |
 | 3xl | 64px | Not used in Phase 3 |
 
-**Exceptions:**
-- Tile internal vertical padding: `py-3` (12px) to keep the tile compact at iPad density.
-- AttentionBadge: `px-1.5 py-0.5` (6px/2px) — badge is data-dense, minimal padding.
-- StartHereFlag: `px-2 py-1` (8px/4px) — pill must fit in tile top-left without crowding.
-- Touch target minimum: 44px for tappable Room tiles (entire tile is the touch target,
-  so grid row heights naturally satisfy this on a 1024×768 iPad viewport).
+**Grid-aligned everywhere — every value is on the locked scale (4/8/16/24/32/48/64).**
+Specifics that were previously off-grid, now corrected:
+- Tile internal padding: uniform **`p-4` (16px)** all sides (was `py-3` 12px) — legible at
+  across-the-room iPad density while staying on-scale.
+- **AttentionBadge:** a fixed-size pill — **`h-5 min-w-5` (20px)** with the count centered via
+  `grid place-items-center` and no custom vertical padding. 20px = 4×5 (on-grid); horizontal
+  breathing comes from `min-w-5`, not off-grid padding.
+- **StartHereFlag:** `px-2 py-1` (8px / 4px) — both on-grid.
+- Touch-target minimum: 44px for tappable Room tiles (the whole tile is the target; grid row
+  heights satisfy this on a 1024×768 iPad viewport). 44 = 4×11 (on-grid) and is the WCAG min.
 
 **Source:** Phase 1 component measurements confirmed by reading `WallQueue.tsx` and
-`page.tsx` (px-10, py-8, px-8, px-5, py-3.5 observed).
+`page.tsx` (px-10, py-8, px-8, px-5 observed).
 
 ---
 
@@ -206,7 +210,7 @@ A single room's glass card. Two visual states: **attention** (≥1 due today) an
 
 **Attention state** (needsAttention === true):
 ```
-bg-surface wall-hairline wall-glass-inset rounded-[13px] p-3
+bg-surface wall-hairline wall-glass-inset rounded-[13px] p-4
 cursor-pointer overflow-hidden
 transition: background 180ms, border-color 180ms, transform 140ms
 hover: bg-surface-2, translateY(-1px)
@@ -214,7 +218,7 @@ hover: bg-surface-2, translateY(-1px)
 
 **Clear state** (needsAttention === false):
 ```
-bg-transparent border border-[var(--hairline)] border-opacity-60 rounded-[13px] p-3
+bg-transparent border border-[var(--hairline)] border-opacity-60 rounded-[13px] p-4
 (no glass-inset, no box-shadow — quiet, receded)
 cursor-pointer
 hover: bg-surface
@@ -260,14 +264,14 @@ interface RoomTileProps {
 Amber numeric badge shown top-right of an attention tile.
 
 ```
-position: absolute, top: 12px, right: 13px
-min-w-[20px] h-[20px] px-1.5
-rounded-[6px]
+absolute top-3 right-3            (12px / 12px — on-grid insets)
+min-w-5 h-5                       (20px fixed pill; no custom padding)
+rounded-md                        (6px)
 font-wall-mono text-[11px] font-medium
 text-wall-warn
 border border-[rgba(227,174,106,0.4)]
 bg-[rgba(227,174,106,0.1)]
-display: grid, place-items: center
+grid place-items-center           (count centered — no off-grid py)
 ```
 
 Shows the numeric `dueCount`. Never shows "0" — if `dueCount === 0`, render
@@ -281,9 +285,9 @@ The badge reads "3" not "3 overdue" — the number alone is sufficient signal.
 Quiet icon shown top-right of a clear tile instead of the attention badge.
 
 ```
-position: absolute, top: 12px, right: 13px
+absolute top-3 right-3   (12px / 12px — on-grid insets)
 text-ghost  (color: #353C48)
-w-[15px] h-[15px]
+w-4 h-4                   (16px, on-grid)
 ```
 
 Use Lucide `RotateCcw` icon (the same loop/refresh glyph the prototype uses for
@@ -297,8 +301,8 @@ Teal pill shown top-left of the room the system flagged as the start.
 Only one tile per floor-plan can have this flag (the wake-room).
 
 ```
-position: absolute, top: 12px, left: 13px
-inline-flex items-center gap-1.5
+absolute top-3 left-3   (12px / 12px — on-grid insets)
+inline-flex items-center gap-1
 font-wall-mono text-[9px] font-medium tracking-[0.14em] uppercase
 text-wall-acc
 bg-[rgba(47,212,191,0.13)]  (wall-acc-dim)
@@ -354,20 +358,20 @@ user know which floor is current and tap to switch (in addition to swipe).
 
 **Layout:**
 ```
-flex flex-row items-center justify-center gap-3
+flex flex-row items-center justify-center gap-2
 py-2 mt-auto
 ```
 
 Each floor button:
 ```
 font-wall-sans text-[12px] font-medium
-px-3 py-1.5 rounded-full
+px-4 py-1 rounded-full
 transition-colors duration-200
 ```
 
 - **Inactive floor:** `text-faint`, no background.
 - **Active floor:** `text-ink bg-surface wall-hairline` with a `wall-acc` 4px dot
-  preceding the name — `w-[4px] h-[4px] rounded-full bg-wall-acc inline-block mr-1.5`.
+  preceding the name — `w-1 h-1 rounded-full bg-wall-acc inline-block mr-1` (4px dot, 4px gap).
 - No bare dots-only navigation — floor names are shown (per CONTEXT.md: "not bare dots
   — clearer for 3 floors").
 
@@ -388,7 +392,7 @@ interface FloorIndicatorProps {
 The section header above the tile grid.
 
 ```
-flex items-center gap-2.5 mb-3
+flex items-center gap-2 mb-4
 ```
 
 Left element: `"THE HOUSE TODAY"` — `font-wall-sans text-[11px] font-semibold
