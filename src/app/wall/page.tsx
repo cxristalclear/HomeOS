@@ -184,18 +184,20 @@ export default function WallPage() {
     return buildLayoutView(tasks, layout, now);
   }, [tasks, layout, now]);
 
-  // When the layout changes (e.g. a floor is deleted at midnight refresh),
-  // validate that activeFloorId still exists in the new floor list. If it
-  // doesn't, fall back to the first floor so AwakeLayer never shows a stale
-  // floor name as "active" in FloorIndicator (WR-03).
-  useEffect(() => {
-    if (!layoutView || !activeFloorId) return;
+  // Validated active floor id — reconciles activeFloorId against the current
+  // floor list (WR-03). If the floor was deleted (e.g. midnight refresh), fall
+  // back to the first available floor. Using useMemo avoids calling setState in
+  // a useEffect body, which the project's lint rule (react-hooks/set-state-in-effect)
+  // prohibits and which would cause a cascading render. AwakeLayer receives the
+  // validated id; the raw activeFloorId state is updated by user actions only.
+  const safeActiveFloorId = useMemo(() => {
+    if (!layoutView || !activeFloorId) return activeFloorId;
     const stillExists = layoutView.floors.some(
       (f) => f.floor.id === activeFloorId,
     );
-    if (!stillExists) {
-      setActiveFloorId(layoutView.floors[0]?.floor.id ?? null);
-    }
+    return stillExists
+      ? activeFloorId
+      : (layoutView.floors[0]?.floor.id ?? null);
   }, [layoutView, activeFloorId]);
 
   /**
@@ -342,10 +344,10 @@ export default function WallPage() {
           400ms crossfade in AwakeLayer (opacity 0→1, scale 0.985→1).
           Only rendered after layout data is available (avoids passing null floors).
         */}
-        {layoutView && activeFloorId ? (
+        {layoutView && safeActiveFloorId ? (
           <AwakeLayer
             floors={layoutView.floors}
-            activeFloorId={activeFloorId}
+            activeFloorId={safeActiveFloorId}
             errands={layoutView.errands}
             now={now}
             wakeRoomId={wakeRoomId}
