@@ -29,6 +29,7 @@ the optimizer made ambient on the wall, never nagging, never showing debt.
 - ✓ Owner vs Completer, **Together** completion, surfaced (active-step) owner — existing
 - ✓ Swappable repository (Supabase + localStorage parity), deployed to Vercel against a live Supabase project — existing
 - ✓ Foundation #1–#3 (spatial model): Floor/Room/Errand types, `0003_floors_rooms.sql`, `listLayout()`, and the read-time Attention engine (`engine/layout.ts`) — built (working tree, uncommitted)
+- ✓ **Wall ambient face**: dark-charcoal landscape `/wall` route (skeleton + no-debt footer), Next Thing hero (owner color-wash, no-debt "N days over"), "Then today" queue, per-person status chips; `nextThing()` + `dueTodayCounts()` pure helpers — Validated in Phase 1: Ambient Face
 
 ### Active
 
@@ -36,7 +37,6 @@ the optimizer made ambient on the wall, never nagging, never showing debt.
 
 - [ ] **Finish the data foundation (#4–#6)**: Manage Room picker (assign Task→Room), Settings to manage Floors/Rooms (with delete-Room→Errand rule), apply `0003` to live Supabase + backfill + parity
 - [ ] **Cooked actions land (ADR 003)**: Done earlier (backdated, re-anchor) and Not today / Defer (`deferred_until`, no credit, returns fresh)
-- [ ] **Wall ambient face**: Next Thing hero (owner, task, no-debt "N days over"), "Then today" queue, per-person status chips, no-debt footer; `nextThing()` pure helper
 - [ ] **Wall awake floor-plan face**: one Floor of Room tiles lit by Attention + pinned Errands tile; `wakeFloor()` opens on the Floor holding the Next Thing ("Start here")
 - [ ] **Wall state machine + swipe**: tap→awake, ~90s idle→ambient; swipe between all 3 Floors
 - [ ] **Room-detail rail with the full action set**: Done (Christal/Syd/Both), Together, Done earlier, Not today; chain handoff preview (whole shape, active step actionable)
@@ -90,7 +90,8 @@ the optimizer made ambient on the wall, never nagging, never showing debt.
 | Wall is a new landscape surface, phone Home untouched | Portrait redesign is a separate effort; don't couple them | — Pending |
 | Two faces, one skeleton (ambient ↔ awake) | Glanceable across the room *and* tappable up close, with visual cohesion | — Pending |
 | Spatial model Floor→Room→Errand; Attention computed on read, never cached | Fits the load-all/compute-on-read engine; avoids cache-invalidation (ADR 004) | — Pending |
-| Ship ambient face first | No foundation dependency → fastest path to a usable wall | — Pending |
+| Ship ambient face first | No foundation dependency → fastest path to a usable wall | ✓ Phase 1 — `/wall` ambient face shipped |
+| Wall ambient theme is dark/charcoal (phone stays light) | Always-on appliance, gentler in a dim room, accents glow; pairs with night dimming | ✓ Phase 1 — dark `/wall`, owner-color-wash hero |
 | Realtime subscription + poll fallback for freshness | Always-on wall can't show hours-stale state for two daily users | — Pending |
 
 ## Evolution
@@ -111,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-28 after initialization*
+*Last updated: 2026-06-28 — Phase 1 (Ambient Face) complete: `/wall` route, Next Thing hero, "Then today" queue, status chips, `nextThing()`/`dueTodayCounts()` engine helpers.*
