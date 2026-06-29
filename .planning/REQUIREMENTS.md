@@ -22,10 +22,10 @@ Requirements for shipping the Wall end-to-end, live on the mounted iPad. Each ma
 
 ### Wall — ambient (sleep) face (WAMB)
 
-- [ ] **WAMB-01**: A new landscape wall route renders the persistent skeleton (top bar + no-debt footer)
-- [ ] **WAMB-02**: The ambient face shows the house-wide **Next Thing** hero (owner, task, no-debt "N days over") in glanceable across-the-room type
-- [ ] **WAMB-03**: With nothing due, the hero shows the plain no-debt empty state, never a guilt counter
-- [ ] **WAMB-04**: `nextThing(tasks, now)` returns the single worst-first item (or null), ties broken `since → created_at → id` (unit-tested)
+- [x] **WAMB-01**: A new landscape wall route renders the persistent skeleton (top bar + no-debt footer)
+- [x] **WAMB-02**: The ambient face shows the house-wide **Next Thing** hero (owner, task, no-debt "N days over") in glanceable across-the-room type
+- [x] **WAMB-03**: With nothing due, the hero shows the plain no-debt empty state, never a guilt counter
+- [x] **WAMB-04**: `nextThing(tasks, now)` returns the single worst-first item (or null), ties broken `since → created_at → id` (unit-tested)
 - [ ] **WAMB-05**: A "Then today" queue lists the rest of today's due items across everyone, worst-first
 - [ ] **WAMB-06**: Per-person status chips show each person's due-today (Anyone-owned counts toward both, via `ownerInView`)
 
@@ -94,10 +94,10 @@ Which phases cover which requirements.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WAMB-01 | Phase 1 | Pending |
-| WAMB-02 | Phase 1 | Pending |
-| WAMB-03 | Phase 1 | Pending |
-| WAMB-04 | Phase 1 | Pending |
+| WAMB-01 | Phase 1 | Complete |
+| WAMB-02 | Phase 1 | Complete |
+| WAMB-03 | Phase 1 | Complete |
+| WAMB-04 | Phase 1 | Complete |
 | WAMB-05 | Phase 1 | Pending |
 | WAMB-06 | Phase 1 | Pending |
 | FND-01 | Phase 2 | Pending |
@@ -127,6 +127,7 @@ Which phases cover which requirements.
 | ROLL-03 | Phase 7 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 28 total
 - Mapped to phases: 28 (100%)
 - Unmapped: 0
