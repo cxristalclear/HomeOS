@@ -38,7 +38,6 @@ export function FloorIndicator({
         return (
           <button
             key={floorView.floor.id}
-            role="button"
             aria-pressed={isActive}
             aria-label={`Floor: ${floorView.floor.name}`}
             onPointerDown={() => onSelectFloor(floorView.floor.id)}
