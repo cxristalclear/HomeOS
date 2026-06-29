@@ -130,7 +130,7 @@ export function AwakeLayer({
     const el = containerRef.current;
     if (!el) return;
     const onMove = (e: TouchEvent) => {
-      if (touchStartX.current !== null) {
+      if (touchStartX.current !== null && e.touches.length === 1) {
         const dx = (e.touches[0]?.clientX ?? 0) - touchStartX.current;
         if (Math.abs(dx) > SWIPE_THRESHOLD_PX / 2) {
           e.preventDefault(); // works because listener is non-passive
@@ -154,7 +154,8 @@ export function AwakeLayer({
 
   // ── Swipe handlers ──────────────────────────────────────────────────────
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0]?.clientX ?? null;
+    if (e.touches.length !== 1) return; // ignore multi-touch (WR-01)
+    touchStartX.current = e.touches[0].clientX;
     onInteraction();
   };
 
