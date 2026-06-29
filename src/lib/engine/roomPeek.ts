@@ -26,11 +26,15 @@ export function roomPeek(
   if (dueNow.length === 0) return null;
 
   // Sort worst-first: ascending by dueSince (older = more urgent).
-  // Guard null dueSince as 0 — matches the engine's "0 = new" convention where a
-  // brand-new task that has never been done sorts ahead of positive-since tasks.
+  // Map dueSince === 0 ("new" — never completed) and null to `now` so brand-new
+  // tasks sort LAST among due-today items, not first. A brand-new task has no
+  // urgency yet; an overdue task has. This is consistent with the no-debt
+  // worst-first ordering: show the most-neglected task first (WR-02).
   const sorted = [...dueNow].sort((a, b) => {
-    const sinceA = dueSince(a, now) ?? 0;
-    const sinceB = dueSince(b, now) ?? 0;
+    const rawA = dueSince(a, now);
+    const rawB = dueSince(b, now);
+    const sinceA = rawA == null || rawA === 0 ? now : rawA;
+    const sinceB = rawB == null || rawB === 0 ? now : rawB;
     return sinceA - sinceB;
   });
 

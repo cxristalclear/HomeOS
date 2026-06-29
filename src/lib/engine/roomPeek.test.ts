@@ -125,4 +125,21 @@ describe("roomPeek", () => {
   it("returns null for an empty tasks array", () => {
     expect(roomPeek({ tasks: [] }, NOW)).toBeNull();
   });
+
+  it("overdue task outranks a brand-new task (WR-02: dueSince=0 sorts last)", () => {
+    // brand-new task: last_completed_at=null → dueSince=0 ("new")
+    // overdue task:   last_completed_at set 2 days past cadence
+    const brandNew = makeTask({
+      id: "new1",
+      name: "Brand new task",
+      every_days: 7,
+      last_completed_at: null, // never done → dueSince = 0
+    });
+    const overdue = overdueBy("old1", 2, "Overdue task");
+
+    // Overdue task should win even when brand-new is listed first in input
+    const result = roomPeek({ tasks: [brandNew, overdue] }, NOW);
+    expect(result).not.toBeNull();
+    expect(result!.text).toBe("Overdue task");
+  });
 });
