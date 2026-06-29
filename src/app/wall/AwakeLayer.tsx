@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ErrandView, FloorView } from "@/lib/engine/layout";
 import { roomPeek } from "@/lib/engine/roomPeek";
 import { ErrandsTile } from "./ErrandsTile";
@@ -113,9 +113,33 @@ export function AwakeLayer({
   // The active FloorView derived from floors + activeFloorId.
   const floor = floors.find((f) => f.floor.id === activeFloorId) ?? floors[0];
 
+  // Container ref for attaching the non-passive touchmove listener (CR-01).
+  const containerRef = useRef<HTMLDivElement>(null);
+
   // Swipe tracking ref — useRef prevents stale closures and avoids render churn
   // (Implementation Note 7 in UI-SPEC: no useState for touch tracking).
   const touchStartX = useRef<number | null>(null);
+
+  // Register touchmove as a non-passive listener so preventDefault() actually
+  // prevents horizontal scroll during a deliberate floor-swipe on iOS Safari.
+  // React 17+ attaches all touch events at the document root as passive
+  // listeners; calling e.preventDefault() on the synthetic onTouchMove is a
+  // no-op there. We must use addEventListener with { passive: false } directly
+  // on the element.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onMove = (e: TouchEvent) => {
+      if (touchStartX.current !== null) {
+        const dx = (e.touches[0]?.clientX ?? 0) - touchStartX.current;
+        if (Math.abs(dx) > SWIPE_THRESHOLD_PX / 2) {
+          e.preventDefault(); // works because listener is non-passive
+        }
+      }
+    };
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onMove);
+  }, []); // touchStartX ref is stable — no deps needed
 
   // Compute peek for the Errands tile once here (engine call, not in tile component)
   const errandPeek = roomPeek(errands, now);
@@ -155,16 +179,6 @@ export function AwakeLayer({
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    // Prevent the page from scrolling horizontally during a deliberate swipe
-    if (touchStartX.current !== null) {
-      const dx = (e.touches[0]?.clientX ?? 0) - touchStartX.current;
-      if (Math.abs(dx) > SWIPE_THRESHOLD_PX / 2) {
-        e.preventDefault();
-      }
-    }
-  };
-
   // ── Crossfade CSS classes (WNAV-01 transition polish) ───────────────────
   // When visible: opacity 1, scale 1, pointer-events auto
   // When hidden:  opacity 0, scale 0.985, pointer-events none
@@ -175,6 +189,7 @@ export function AwakeLayer({
 
   return (
     <div
+      ref={containerRef}
       role="region"
       aria-label="Floor plan"
       className={[
@@ -185,7 +200,6 @@ export function AwakeLayer({
       ].join(" ")}
       onPointerDown={onInteraction}
       onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {/* Visually hidden live region for floor attention summary */}
