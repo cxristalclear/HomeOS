@@ -81,6 +81,8 @@ export function WallHero({ item, loading, now }: WallHeroProps) {
   return (
     <div className="flex flex-1 flex-col justify-center">
       <div
+        aria-live="polite"
+        aria-atomic="true"
         className={`rounded-3xl border p-16 shadow-lg ${styles.panel} ${styles.border}`}
       >
         {/* Owner name */}
@@ -92,7 +94,6 @@ export function WallHero({ item, loading, now }: WallHeroProps) {
 
         {/* Task name — across-the-room type, single line, truncated */}
         <p
-          aria-live="polite"
           className="mb-3 truncate text-7xl font-semibold tracking-tight text-stone-50"
         >
           {item.task.name}
