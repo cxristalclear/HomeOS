@@ -77,8 +77,9 @@ export function WallQueue({ todayItems, hero, now }: WallQueueProps) {
                   className={`h-3 w-3 shrink-0 rounded-full ${dotClass}`}
                   aria-hidden="true"
                 />
-                {/* Task name — single line, truncated */}
-                <span className="truncate text-xl font-semibold text-stone-50">
+                {/* Task name — single line, truncated; min-w-0 is required so the
+                    flex item can shrink below its content width and clip */}
+                <span className="min-w-0 truncate text-xl font-semibold text-stone-50">
                   {item.stepLabel ?? item.task.name}
                 </span>
               </div>
