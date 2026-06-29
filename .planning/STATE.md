@@ -6,14 +6,14 @@ current_phase: 3
 current_phase_name: Awake Floor-Plan Face + Navigation
 status: executing
 stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-06-29T13:03:24.088Z"
+last_updated: "2026-06-29T13:16:28.179Z"
 last_activity: 2026-06-29
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-28)
 ## Current Position
 
 Phase: 3 (Awake Floor-Plan Face + Navigation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-29 — Phase 3 execution started
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P01 | 291 | 3 tasks | 6 files |
 | Phase 01 P02 | 257 | 3 tasks | 5 files |
 | Phase 03-awake-floor-plan-face-navigation P01 | 256 | 2 tasks | 4 files |
+| Phase 03 P02 | 449 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,10 @@ Recent decisions affecting current work:
 - [Phase ?]: wakeFloor reuses nextThing + buildLayoutView (no recomputation of due/attention)
 - [Phase ?]: fallback tie-break relies on buildLayoutView level-sorted array ordering
 - [Phase ?]: roomPeek is shape-agnostic (accepts { tasks: Task[] }) so RoomView and ErrandView both pass through
+- [Phase ?]: was absent from package.json; plan stated pre-installed; Rule 3 auto-fix
+- [Phase ?]: wakeRoomId tracks the initial wake room (StartHereFlag); selectedRoomId tracks user taps (toggle)
+- [Phase ?]: Single selectedRoomId string state uses sentinel '__errands__' to represent the Errands tile selection
+- [Phase ?]: Both ambient and awake layers mounted with opacity toggle for Plan 03-03 crossfade preparation
 
 ### Pending Todos
 
@@ -87,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-29T13:03:02.733Z
+Last session: 2026-06-29T13:15:55.231Z
 Stopped at: Completed 01-02-PLAN.md
 Resume file: None

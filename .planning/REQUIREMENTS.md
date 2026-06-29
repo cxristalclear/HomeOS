@@ -31,15 +31,15 @@ Requirements for shipping the Wall end-to-end, live on the mounted iPad. Each ma
 
 ### Wall — awake (floor-plan) face (WAWK)
 
-- [ ] **WAWK-01**: One Floor renders as Room tiles, each with a due-today **Attention** badge or "clear"
-- [ ] **WAWK-02**: A synthesized **Errands** tile is pinned, shown regardless of which Floor is displayed
-- [ ] **WAWK-03**: On wake, the wall opens on the Floor holding the Next Thing; that Room reads **"Start here"**
+- [x] **WAWK-01**: One Floor renders as Room tiles, each with a due-today **Attention** badge or "clear"
+- [x] **WAWK-02**: A synthesized **Errands** tile is pinned, shown regardless of which Floor is displayed
+- [x] **WAWK-03**: On wake, the wall opens on the Floor holding the Next Thing; that Room reads **"Start here"**
 - [x] **WAWK-04**: `wakeFloor(tasks, layout, now)` returns the Floor id of the Next Thing (Errand → defined fallback), unit-tested
-- [ ] **WAWK-05**: Tapping a Room marks it selected
+- [x] **WAWK-05**: Tapping a Room marks it selected
 
 ### Wall — state machine & navigation (WNAV)
 
-- [ ] **WNAV-01**: Tapping the ambient face wakes the wall to the awake floor plan on the wake-Floor
+- [x] **WNAV-01**: Tapping the ambient face wakes the wall to the awake floor plan on the wake-Floor
 - [ ] **WNAV-02**: After ~90s (tunable) with no interaction the wall returns to ambient; any interaction resets the timer
 - [ ] **WNAV-03**: Swiping changes the displayed Floor; all 3 Floors are reachable; the current Floor is indicated; the Errands tile stays pinned
 
@@ -105,12 +105,12 @@ Which phases cover which requirements.
 | FND-03 | Phase 2 | Pending |
 | FND-04 | Phase 2 | Pending |
 | FND-05 | Phase 2 | Pending |
-| WAWK-01 | Phase 3 | Pending |
-| WAWK-02 | Phase 3 | Pending |
-| WAWK-03 | Phase 3 | Pending |
+| WAWK-01 | Phase 3 | Complete |
+| WAWK-02 | Phase 3 | Complete |
+| WAWK-03 | Phase 3 | Complete |
 | WAWK-04 | Phase 3 | Complete |
-| WAWK-05 | Phase 3 | Pending |
-| WNAV-01 | Phase 3 | Pending |
+| WAWK-05 | Phase 3 | Complete |
+| WNAV-01 | Phase 3 | Complete |
 | WNAV-02 | Phase 3 | Pending |
 | WNAV-03 | Phase 3 | Pending |
 | WRAIL-01 | Phase 4 | Pending |
