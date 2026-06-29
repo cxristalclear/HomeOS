@@ -9,21 +9,24 @@ import { nextThing } from "@/lib/engine/nextThing";
 import { WallFooter } from "./WallFooter";
 import { WallHero } from "./WallHero";
 import { WallQueue } from "./WallQueue";
-import { WallStatusChips } from "./WallStatusChips";
 import { WallTopBar } from "./WallTopBar";
 
 /**
  * /wall — the ambient face for the always-on, wall-mounted iPad.
  *
  * Full-viewport landscape layout: top bar → two-column content → footer.
- * Left column (55%) houses the Next Thing hero; right column (45%) will hold
- * the "Then today" queue and status chips in Plan 02.
+ * Left column (~60%) houses the Next Thing hero; right column (~40%) holds
+ * the "Then today" queue. The people chips live in the top bar (header right).
  *
  * No interactive elements in Phase 1 — display-only. All writes happen on
  * the phone surface (/).
  *
  * Day buckets advance at local midnight (scheduleMidnight timer) and on
  * visibilitychange — the same always-on-iPad pattern as the phone Home page.
+ *
+ * Design: dark canvas (#0b0d11), oversized Fraunces serif hero as the
+ * signature, slow hearth-glow ambient, Inter UI, system mono clock.
+ * See docs/specs/wall-design-system.md for the full design reference.
  */
 export default function WallPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
@@ -89,31 +92,38 @@ export default function WallPage() {
     return bucketTasks(tasks, now).find((b) => b.key === "today")?.items ?? [];
   }, [tasks, now]);
 
-  // Per-person due-today counts — used by WallStatusChips.
+  // Per-person due-today counts — used by WallTopBar chips.
   const counts = useMemo(
     () => (tasks ? dueTodayCounts(tasks, now) : null),
     [tasks, now],
   );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-stone-950 text-stone-50">
-      <WallTopBar />
+    // wall-surface: applies CSS vars + font-smoothing scoped to this route only
+    // wall-vignette: subtle depth vignette via ::after pseudo-element
+    <div
+      className="wall-surface wall-vignette relative flex h-screen flex-col overflow-hidden font-wall-sans"
+      style={{ background: "#0b0d11", color: "#ECEEF2" }}
+    >
+      {/* Top bar: live clock (left) + people chips (right) */}
+      <WallTopBar counts={counts} />
 
-      {/* Two-column content region: hero left, queue+chips right */}
+      {/* Two-column content region */}
       <main
         role="main"
         className="flex flex-1 overflow-hidden"
       >
-        {/* Left column — Next Thing hero (55%) */}
-        <div className="flex w-[55%] flex-col px-8 py-8">
+        {/* Left column — Next Thing hero (~60%) */}
+        <div className="flex w-[60%] flex-col px-10 py-8">
           <WallHero item={tasks === null ? null : hero} loading={tasks === null} now={now} />
         </div>
 
-        {/* Right column — "Then today" queue + status chips (WAMB-05, WAMB-06) */}
-        <div className="flex w-[45%] flex-col gap-6 px-8 py-8">
+        {/* Hairline vertical divider */}
+        <div className="wall-hairline-r my-8" aria-hidden="true" />
+
+        {/* Right column — "Then today" queue (~40%) */}
+        <div className="flex w-[40%] flex-col gap-6 px-8 py-8">
           <WallQueue todayItems={todayItems} hero={hero} now={now} />
-          {/* Chips are hidden while loading (counts === null) per the UI-SPEC */}
-          {counts !== null && <WallStatusChips counts={counts} />}
         </div>
       </main>
 

@@ -2,27 +2,38 @@ import type { BucketItem } from "@/lib/engine/buckets";
 import { overdueLabel } from "@/lib/engine/due";
 
 /**
- * "Then today" queue — the remaining due-today items after the hero, worst-first.
+ * "Then today" queue — the remaining due-today items after the hero.
  *
- * Displays all items from the today bucket EXCEPT the one already shown in the
- * hero, identified by task.id (and stepId for chains so the same chain step
- * isn't double-shown).
+ * Glass-light card: surface bg, hairline border, subtle inset top highlight.
+ * Rows: small owner dot + task name (Inter, ink) + mono hint on right.
  *
  * Per the UI-SPEC and WAMB-05:
- * - When the remainder is empty (hero is the only due item), render NOTHING.
- * - No Done buttons, no links — display-only in Phase 1.
- * - Each row: owner dot (wall accent tints) + truncated task name + overdue label.
+ * - Excludes the hero item (by task.id + stepId).
+ * - Renders null when nothing remains (hero is the only item).
+ * - Display-only in Phase 1 — no Done buttons, no links.
  */
 
-/**
- * Owner accent dot colors for the dark wall surface.
- * Lighter tints than the phone (sky-500/rose-400) so they read on charcoal.
- */
-const WALL_OWNER_DOT: Record<string, string> = {
-  me: "bg-sky-400",
-  her: "bg-rose-300",
+/** Owner dot fill for dark wall surface */
+const OWNER_DOT_COLOR: Record<string, string> = {
+  me: "#6AA6FF",
+  her: "#F5A0C4",
 };
-const WALL_OWNER_DOT_DEFAULT = "bg-stone-400"; // anyone / null
+const OWNER_DOT_DEFAULT = "#353C48"; // anyone / null
+
+/** Owner hint text color */
+const HINT_COLOR: Record<string, string> = {
+  me: "#6AA6FF",
+  her: "#F5A0C4",
+};
+const HINT_DEFAULT = "#555D6B";
+
+/** Short hint label for the row right side */
+function ownerHint(item: BucketItem): string {
+  if (item.stepLabel) return item.stepLabel;
+  if (item.owner === "me") return "Christal";
+  if (item.owner === "her") return "Syd";
+  return "anyone";
+}
 
 interface WallQueueProps {
   /** All items in the today bucket (worst-first order from bucketTasks). */
@@ -38,57 +49,66 @@ export function WallQueue({ todayItems, hero, now }: WallQueueProps) {
   const queue = todayItems.filter((item) => {
     if (!hero) return true;
     if (item.task.id !== hero.task.id) return true;
-    // Same task — for chains, also match stepId; for simple tasks both are null
     return item.stepId !== hero.stepId;
   });
 
-  // Per UI-SPEC: when nothing remains to show, omit section entirely
+  // Per UI-SPEC: when nothing remains, omit section entirely
   if (queue.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Section header — "Then today" label role (text-xl font-semibold per UI-SPEC) */}
-      <h2 className="text-xl font-semibold tracking-tight text-stone-50">
-        Then today
-      </h2>
+    // Glass card — surface background, hairline border, glass inset edge
+    <div className="wall-hairline wall-glass-inset flex flex-col rounded-2xl bg-surface overflow-hidden">
+      {/* Card header */}
+      <div className="wall-hairline-b px-5 py-3.5">
+        <h2 className="font-wall-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          Then today
+        </h2>
+      </div>
 
-      <div className="flex flex-col gap-3">
+      {/* Rows */}
+      <div className="flex flex-col divide-y" style={{ borderColor: "var(--hairline)" }}>
         {queue.map((item, idx) => {
-          const dotClass =
-            item.owner && item.owner !== "anyone"
-              ? (WALL_OWNER_DOT[item.owner] ?? WALL_OWNER_DOT_DEFAULT)
-              : WALL_OWNER_DOT_DEFAULT;
+          const ownerKey = item.owner ?? "anyone";
+          const dotColor =
+            ownerKey !== "anyone"
+              ? (OWNER_DOT_COLOR[ownerKey] ?? OWNER_DOT_DEFAULT)
+              : OWNER_DOT_DEFAULT;
+          const hintColor =
+            ownerKey !== "anyone"
+              ? (HINT_COLOR[ownerKey] ?? HINT_DEFAULT)
+              : HINT_DEFAULT;
 
           const label =
             item.since !== null ? overdueLabel(item.since, now) : null;
+          const isOverdue = label?.includes("over") ?? false;
+          const hint = ownerHint(item);
 
-          // Use task.id + stepId + idx as the key (same task can theoretically
-          // appear more than once in theory, so idx guards key uniqueness)
           const key = `${item.task.id}-${item.stepId ?? "simple"}-${idx}`;
 
           return (
             <div
               key={key}
-              className="flex flex-col gap-1 rounded bg-stone-900 px-4 py-3"
+              className="flex items-center gap-3 px-5 py-3.5"
             >
-              <div className="flex items-center gap-2">
-                {/* Owner dot */}
-                <span
-                  className={`h-3 w-3 shrink-0 rounded-full ${dotClass}`}
-                  aria-hidden="true"
-                />
-                {/* Task name — single line, truncated; min-w-0 is required so the
-                    flex item can shrink below its content width and clip */}
-                <span className="min-w-0 truncate text-xl font-semibold text-stone-50">
-                  {item.stepLabel ?? item.task.name}
-                </span>
-              </div>
-              {/* Overdue label sub-detail — no-debt phrasing from overdueLabel() */}
-              {label && (
-                <span className="pl-5 text-sm font-normal text-stone-400">
-                  {label}
-                </span>
-              )}
+              {/* Owner dot */}
+              <span
+                className="h-[7px] w-[7px] shrink-0 rounded-full"
+                style={{ background: dotColor }}
+                aria-hidden="true"
+              />
+
+              {/* Task name — grows, truncates */}
+              <span className="min-w-0 flex-1 truncate font-wall-sans text-[15px] font-medium leading-snug tracking-[-0.01em] text-ink">
+                {item.task.name}
+              </span>
+
+              {/* Right: hint (owner/step) + optional overdue */}
+              <span
+                className="shrink-0 font-wall-mono text-[10.5px] uppercase tracking-[0.02em]"
+                style={{ color: isOverdue ? "#E3AE6A" : hintColor }}
+              >
+                {isOverdue ? label : hint}
+              </span>
             </div>
           );
         })}

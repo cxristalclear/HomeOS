@@ -1,19 +1,18 @@
 /**
- * Per-person status chips — shows each person's due-today count.
+ * WallStatusChips — per-person status chips for the /wall ambient face.
+ *
+ * In the new design system, chips live in the WallTopBar header (right side).
+ * This component is kept for backwards compatibility and could be used in
+ * alternate layouts or testing, but the primary render path is via WallTopBar.
  *
  * Both chips are always rendered (including at zero) so the wall confirms it's
- * live. Zero counts are normal — "Christal · 0" tells a glancer the data is
- * fresh, not missing.
+ * live. Zero counts are normal.
  *
- * Per the UI-SPEC (WAMB-06):
- * - Copy: "Christal · N" and "Syd · N" — plain count, no "tasks" noun.
- * - Christal accent: sky-400 border + count text.
- * - Syd accent: rose-300 border + count text.
- * - Pill shape: rounded-full bg-stone-900 py-3 px-5.
+ * Per the design system (docs/specs/wall-design-system.md):
+ * - Christal accent: #6AA6FF (wall-me)
+ * - Syd accent: #F5A0C4 (wall-her)
+ * - Pill shape: surface bg, hairline border, glass inset.
  * - Hidden while loading (parent passes null and renders nothing instead).
- *
- * The count is a present snapshot of due-today items — not accrued debt.
- * "Christal · 3" means 3 things are due today for Christal, not 3 owed.
  */
 
 interface WallStatusChipsProps {
@@ -23,19 +22,41 @@ interface WallStatusChipsProps {
 export function WallStatusChips({ counts }: WallStatusChipsProps) {
   return (
     <div className="flex flex-row gap-3">
-      {/* Christal chip — sky-400 accent */}
-      <div className="rounded-full border border-sky-400 bg-stone-900 px-5 py-3">
-        <span className="text-base font-normal text-stone-50">
-          Christal{" "}
-          <span className="font-semibold text-sky-400">· {counts.me}</span>
+      {/* Christal chip */}
+      <div className="wall-hairline wall-glass-inset flex items-center gap-2 rounded-full bg-surface px-3 py-1.5">
+        <span
+          className="flex h-[25px] w-[25px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+          style={{ background: "#6AA6FF", color: "#06080c" }}
+          aria-hidden="true"
+        >
+          C
+        </span>
+        <span className="font-wall-sans leading-tight">
+          <span className="block text-[12px] font-semibold tracking-[-0.01em] text-ink">
+            Christal
+          </span>
+          <span className="block text-[10.5px] text-soft">
+            {counts.me} today
+          </span>
         </span>
       </div>
 
-      {/* Syd chip — rose-300 accent */}
-      <div className="rounded-full border border-rose-300 bg-stone-900 px-5 py-3">
-        <span className="text-base font-normal text-stone-50">
-          Syd{" "}
-          <span className="font-semibold text-rose-300">· {counts.her}</span>
+      {/* Syd chip */}
+      <div className="wall-hairline wall-glass-inset flex items-center gap-2 rounded-full bg-surface px-3 py-1.5">
+        <span
+          className="flex h-[25px] w-[25px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+          style={{ background: "#F5A0C4", color: "#06080c" }}
+          aria-hidden="true"
+        >
+          S
+        </span>
+        <span className="font-wall-sans leading-tight">
+          <span className="block text-[12px] font-semibold tracking-[-0.01em] text-ink">
+            Syd
+          </span>
+          <span className="block text-[10.5px] text-soft">
+            {counts.her} today
+          </span>
         </span>
       </div>
     </div>
