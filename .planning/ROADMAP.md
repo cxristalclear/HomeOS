@@ -154,7 +154,7 @@ Phase 1 and Phase 2 can run in parallel. Phase 3 requires both. Phases 4 → 5 �
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Ambient Face | 2/2 | Complete   | 2026-06-29 |
+| 1. Ambient Face | 2/2 | Complete    | 2026-06-29 |
 | 2. Foundation Finish | 0/TBD | Not started | - |
 | 3. Awake Floor-Plan Face + Navigation | 0/TBD | Not started | - |
 | 4. Room Rail — Done/Together | 0/TBD | Not started | - |
