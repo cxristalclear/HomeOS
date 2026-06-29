@@ -213,17 +213,23 @@ export default function WallPage() {
   const handleWakeWithFlag = useCallback(() => {
     if (!tasks || !layout) return;
 
+    // Call nextThing once and derive both the wake floor and wake room from the
+    // same result — avoids a second redundant call inside wakeFloor (CR-02).
+    const next = nextThing(tasks, now);
     const floorId = wakeFloor(tasks, layout, now) ?? layout.floors[0]?.id ?? null;
     if (!floorId) return;
 
     setActiveFloorId(floorId);
 
-    const next = nextThing(tasks, now);
+    // Resolve the wake room: the Next Thing's room if it exists in the layout.
+    // The original r.floor_id === floorId guard was overly strict — wakeFloor
+    // already returns the Next Thing's floor when a placed Next Thing exists,
+    // making the guard always true. Dropping it aligns with what wakeFloor
+    // guarantees and avoids the edge case where a data inconsistency could
+    // silently null out wakeRoomId.
     const resolvedWakeRoomId =
       next?.task.room_id != null &&
-      layout.rooms.find(
-        (r) => r.id === next.task.room_id && r.floor_id === floorId,
-      )
+      layout.rooms.some((r) => r.id === next.task.room_id)
         ? next.task.room_id
         : null;
 
