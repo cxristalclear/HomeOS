@@ -95,9 +95,16 @@ export function ErrandsTile({
       role="button"
       aria-pressed={isSelected}
       aria-label={ariaLabel}
+      tabIndex={0}
       className={`relative flex cursor-pointer flex-col rounded-[13px] p-4 overflow-hidden transition-[background,border-color,transform] duration-[180ms] hover:bg-surface-2 ${baseClasses} ${isSelected ? "bg-surface-2" : ""}`}
       style={selectedStyle}
       onPointerDown={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
     >
       {/* Top strip: badge or clear icon (top-right) */}
       {needsAttention ? (
