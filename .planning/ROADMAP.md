@@ -84,9 +84,18 @@ Plans:
   5. Tapping a Room tile marks it selected (rail behavior follows in Phase 4)
 
 **Plans**: 3 plans
+**Wave 1**
+
 - [ ] 03-01-PLAN.md — wakeFloor() engine fn + roomPeek helper (pure, unit-tested)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-02-PLAN.md — awake floor-plan render + tap-to-wake (tiles, badges, Errands, Start here, selection)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-03-PLAN.md — navigation: crossfade, swipe + floor indicator, 90s idle return
+
 **UI hint**: yes
 
 ### Phase 4: Room Rail — Done/Together
