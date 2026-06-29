@@ -21,7 +21,7 @@ Phases 1 and 2 can run in parallel (parallelization: on). Phases 3+ depend on bo
 
 - [x] **Phase 1: Ambient Face** - Wall skeleton + Next Thing hero + "Then today" queue + status chips; zero foundation dependency; ships first (completed 2026-06-29)
 - [ ] **Phase 2: Foundation Finish** - Manage Room picker, Settings Floors/Rooms, live Supabase migration HITL (parallel with Phase 1)
-- [ ] **Phase 3: Awake Floor-Plan Face + Navigation** - Floor tiles with Attention badges, wakeFloor(), tap→awake, 90s idle→ambient, swipe between floors
+- [x] **Phase 3: Awake Floor-Plan Face + Navigation** - Floor tiles with Attention badges, wakeFloor(), tap→awake, 90s idle→ambient, swipe between floors (completed 2026-06-29)
 - [ ] **Phase 4: Room Rail — Done/Together** - Room task rail, Done who-prompt, Together, chain handoff preview with stale-completion guard
 - [ ] **Phase 5: ADR 003 Actions** - Done earlier (backdated) and Not today (defer), wired into rail; atomic deferred_until sync with layout engine
 - [ ] **Phase 6: Live Refresh + Night Dimming** - Supabase Realtime subscription, poll fallback, quiet-hours dimming
@@ -83,7 +83,7 @@ Plans:
   4. After ~90 seconds with no interaction the wall returns to ambient; any tap resets the timer
   5. Tapping a Room tile marks it selected (rail behavior follows in Phase 4)
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 **Wave 1**
 
 - [x] 03-01-PLAN.md — wakeFloor() engine fn + roomPeek helper (pure, unit-tested)
@@ -94,7 +94,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — navigation: crossfade, swipe + floor indicator, 90s idle return
+- [x] 03-03-PLAN.md — navigation: crossfade, swipe + floor indicator, 90s idle return
 
 **UI hint**: yes
 
@@ -168,7 +168,7 @@ Phase 1 and Phase 2 can run in parallel. Phase 3 requires both. Phases 4 → 5 �
 |-------|----------------|--------|-----------|
 | 1. Ambient Face | 2/2 | Complete    | 2026-06-29 |
 | 2. Foundation Finish | 0/TBD | Not started | - |
-| 3. Awake Floor-Plan Face + Navigation | 2/3 | In Progress|  |
+| 3. Awake Floor-Plan Face + Navigation | 3/3 | Complete   | 2026-06-29 |
 | 4. Room Rail — Done/Together | 0/TBD | Not started | - |
 | 5. ADR 003 Actions | 0/TBD | Not started | - |
 | 6. Live Refresh + Night Dimming | 0/TBD | Not started | - |

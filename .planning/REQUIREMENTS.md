@@ -40,8 +40,8 @@ Requirements for shipping the Wall end-to-end, live on the mounted iPad. Each ma
 ### Wall — state machine & navigation (WNAV)
 
 - [x] **WNAV-01**: Tapping the ambient face wakes the wall to the awake floor plan on the wake-Floor
-- [ ] **WNAV-02**: After ~90s (tunable) with no interaction the wall returns to ambient; any interaction resets the timer
-- [ ] **WNAV-03**: Swiping changes the displayed Floor; all 3 Floors are reachable; the current Floor is indicated; the Errands tile stays pinned
+- [x] **WNAV-02**: After ~90s (tunable) with no interaction the wall returns to ambient; any interaction resets the timer
+- [x] **WNAV-03**: Swiping changes the displayed Floor; all 3 Floors are reachable; the current Floor is indicated; the Errands tile stays pinned
 
 ### Wall — room rail & actions (WRAIL)
 
@@ -111,8 +111,8 @@ Which phases cover which requirements.
 | WAWK-04 | Phase 3 | Complete |
 | WAWK-05 | Phase 3 | Complete |
 | WNAV-01 | Phase 3 | Complete |
-| WNAV-02 | Phase 3 | Pending |
-| WNAV-03 | Phase 3 | Pending |
+| WNAV-02 | Phase 3 | Complete |
+| WNAV-03 | Phase 3 | Complete |
 | WRAIL-01 | Phase 4 | Pending |
 | WRAIL-02 | Phase 4 | Pending |
 | WRAIL-03 | Phase 4 | Pending |
