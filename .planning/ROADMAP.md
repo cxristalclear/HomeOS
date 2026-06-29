@@ -83,10 +83,10 @@ Plans:
   4. After ~90 seconds with no interaction the wall returns to ambient; any tap resets the timer
   5. Tapping a Room tile marks it selected (rail behavior follows in Phase 4)
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — wakeFloor() engine fn + roomPeek helper (pure, unit-tested)
+- [x] 03-01-PLAN.md — wakeFloor() engine fn + roomPeek helper (pure, unit-tested)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -168,7 +168,7 @@ Phase 1 and Phase 2 can run in parallel. Phase 3 requires both. Phases 4 → 5 �
 |-------|----------------|--------|-----------|
 | 1. Ambient Face | 2/2 | Complete    | 2026-06-29 |
 | 2. Foundation Finish | 0/TBD | Not started | - |
-| 3. Awake Floor-Plan Face + Navigation | 0/TBD | Not started | - |
+| 3. Awake Floor-Plan Face + Navigation | 1/3 | In Progress|  |
 | 4. Room Rail — Done/Together | 0/TBD | Not started | - |
 | 5. ADR 003 Actions | 0/TBD | Not started | - |
 | 6. Live Refresh + Night Dimming | 0/TBD | Not started | - |

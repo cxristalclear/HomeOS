@@ -34,7 +34,7 @@ Requirements for shipping the Wall end-to-end, live on the mounted iPad. Each ma
 - [ ] **WAWK-01**: One Floor renders as Room tiles, each with a due-today **Attention** badge or "clear"
 - [ ] **WAWK-02**: A synthesized **Errands** tile is pinned, shown regardless of which Floor is displayed
 - [ ] **WAWK-03**: On wake, the wall opens on the Floor holding the Next Thing; that Room reads **"Start here"**
-- [ ] **WAWK-04**: `wakeFloor(tasks, layout, now)` returns the Floor id of the Next Thing (Errand → defined fallback), unit-tested
+- [x] **WAWK-04**: `wakeFloor(tasks, layout, now)` returns the Floor id of the Next Thing (Errand → defined fallback), unit-tested
 - [ ] **WAWK-05**: Tapping a Room marks it selected
 
 ### Wall — state machine & navigation (WNAV)
@@ -108,7 +108,7 @@ Which phases cover which requirements.
 | WAWK-01 | Phase 3 | Pending |
 | WAWK-02 | Phase 3 | Pending |
 | WAWK-03 | Phase 3 | Pending |
-| WAWK-04 | Phase 3 | Pending |
+| WAWK-04 | Phase 3 | Complete |
 | WAWK-05 | Phase 3 | Pending |
 | WNAV-01 | Phase 3 | Pending |
 | WNAV-02 | Phase 3 | Pending |

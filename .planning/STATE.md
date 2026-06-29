@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: Foundation Finish
+current_phase: 3
+current_phase_name: Awake Floor-Plan Face + Navigation
 status: executing
 stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-06-29T12:55:42.315Z"
+last_updated: "2026-06-29T13:03:24.088Z"
 last_activity: 2026-06-29
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
+last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 5
+  completed_plans: 3
   percent: 14
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-28)
 
 **Core value:** One clear next thing, readable across the room and actionable on the spot — the optimizer made ambient, never nagging, never showing debt.
-**Current focus:** Phase 01 — ambient-face
+**Current focus:** Phase 3 — Awake Floor-Plan Face + Navigation
 
 ## Current Position
 
-Phase: 2 — Foundation Finish
-Plan: Not started
+Phase: 3 (Awake Floor-Plan Face + Navigation) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-29 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-06-29 — Phase 3 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01 P01 | 291 | 3 tasks | 6 files |
 | Phase 01 P02 | 257 | 3 tasks | 5 files |
+| Phase 03-awake-floor-plan-face-navigation P01 | 256 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,9 @@ Recent decisions affecting current work:
 - [Phase ?]: WallHero fully implemented in Task 2 commit to keep build green throughout
 - [Phase ?]: dueTodayCounts delegates to bucketTasks + ownerInView — no due logic re-derived; anyone-counts-both rule owned by ownerInView and pinned by tests
 - [Phase ?]: todayItems derived from a single bucketTasks call in page.tsx and passed as prop to WallQueue (no duplicate call)
+- [Phase ?]: wakeFloor reuses nextThing + buildLayoutView (no recomputation of due/attention)
+- [Phase ?]: fallback tie-break relies on buildLayoutView level-sorted array ordering
+- [Phase ?]: roomPeek is shape-agnostic (accepts { tasks: Task[] }) so RoomView and ErrandView both pass through
 
 ### Pending Todos
 
@@ -83,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-29T01:13:40.438Z
+Last session: 2026-06-29T13:03:02.733Z
 Stopped at: Completed 01-02-PLAN.md
 Resume file: None
